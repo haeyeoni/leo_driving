@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "bitset": "cpp",
-        "deque": "cpp",
-        "string": "cpp",
-        "vector": "cpp"
-    }
-}
