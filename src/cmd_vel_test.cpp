@@ -279,33 +279,42 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 	read_pose_ = 1;
 }   
 
-void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg){
+void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
+{
 	clicked_point_.pose.position = click_msg->pose.position;
 	has_goal_ = 1;
 
 	// check the rotation orientation
 	if (read_pose_)
 	{
-		tf::Quaternion q(amcl_pose_.pose.pose.orientation.x,
-							amcl_pose_.pose.pose.orientation.y,
-							amcl_pose_.pose.pose.orientation.z,
-							amcl_pose_.pose.pose.orientation.w);
-		tf::Matrix3x3 m(q);
-		double roll, pitch, yaw;
-		m.getRPY(roll, pitch, yaw);
-
-		double angle = atan2(click_msg->pose.position.y - amcl_pose_.pose.pose.position.y,
-								click_msg->pose.position.x - amcl_pose_.pose.pose.position.x);
-		
-		cout<<"angle between goal and current: " <<angle<<endl;
-		cout<<"current angle: " <<yaw<<endl;
-		if (abs(angle - yaw) > M_PI - params_.rotation_ang_err_)
+		try
 		{
-			double pinpoint_x = amcl_pose_.pose.pose.position.x;
-			double pinpoint_y = amcl_pose_.pose.pose.position.y;
-			double pinpoint_z = amcl_pose_.pose.pose.position.z;
-			double pinpoint_theta = yaw;
-			rotateReverse(pinpoint_x, pinpoint_y, pinpoint_z, pinpoint_theta);
+			const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", amcl_pose_.header.frame_id, ros::Time(0));      
+			tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
+			tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
+
+			tf2::Matrix3x3 m(orientation);
+			double roll, pitch, yaw;
+			m.getRPY(roll, pitch, yaw);
+		
+			double angle = atan2(click_msg->pose.position.y - translation.y(), click_msg->pose.position.x - translation.x());
+			
+			cout<<"angle between goal and current: " <<angle<<endl;
+			cout<<"current angle: " <<yaw<<endl;
+		
+			if (abs(angle - yaw) > M_PI - params_.rotation_ang_err_)
+			{
+				double pinpoint_x = translation.x();
+				double pinpoint_y = translation.y();
+				double pinpoint_z = translation.z();
+				double pinpoint_theta = yaw;
+				rotateReverse(pinpoint_x, pinpoint_y, pinpoint_z, pinpoint_theta);
+			}
+		}
+		catch (tf2::TransformException& e)	
+		{
+			ROS_INFO("Failed to find transform between odom and base_link");
+			return;		
 		}
 	}
 }   
@@ -314,21 +323,21 @@ void Command::rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoin
 {
 	geometry_msgs::Twist cmd_vel;
 	float Kpy = params_.Kpy_param_; // rotation 
-	float linear_vel = params_.linear_vel_rot_;
+	float linear_vel_rot = params_.linear_vel_rot_;
 	driving_mode_ = 1; // pause autonomous driving
 	double angle_err, dist_err, current_angle;
 	while(true)
 	{
-		tf::Quaternion q(amcl_pose_.pose.pose.orientation.x,
-						amcl_pose_.pose.pose.orientation.y,
-						amcl_pose_.pose.pose.orientation.z,
-						amcl_pose_.pose.pose.orientation.w);
-		tf::Matrix3x3 m(q);
+		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", amcl_pose_.header.frame_id, ros::Time(0));      
+		tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
+		tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
+
+		tf2::Matrix3x3 m(orientation);
 		double roll, pitch, yaw;
 		m.getRPY(roll, pitch, yaw);
+
 		angle_err = pinpoint_theta + M_PI - yaw;
-		dist_err = sqrt(pow(amcl_pose_.pose.pose.orientation.x - pinpoint_x, 2) +
-						pow(amcl_pose_.pose.pose.orientation.y - pinpoint_y, 2));
+		dist_err = sqrt(pow(translation.x() - pinpoint_x, 2) + pow(translation.y() - pinpoint_y, 2));
 						
 		if (abs(angle_err) < params_.rotation_ang_err_)
 		{
@@ -344,13 +353,13 @@ void Command::rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoin
 		else // moved too much from the pinpoint while rotation
 		{
 			cout<<"adjusting position"<<endl;
-			double angle = atan2(amcl_pose_.pose.pose.position.y - pinpoint_y,
-								 amcl_pose_.pose.pose.position.x - pinpoint_x);
+			
+			double angle = atan2(translation.y() - pinpoint_y, translation.x() - pinpoint_x);
 			cmd_vel.angular.z = 0.0;
 			if (abs(angle - yaw) > M_PI - params_.rotation_ang_err_) // should go front
-				cmd_vel.linear.x = linear_vel_rot_;
+				cmd_vel.linear.x = linear_vel_rot;
 			else // should go back
-				cmd_vel.linear.x = -linear_vel_rot_;
+				cmd_vel.linear.x = -linear_vel_rot;
 			pub_cmd_.publish(cmd_vel);
 		}
 	}

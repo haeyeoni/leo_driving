@@ -63,8 +63,10 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/statistical_outlier_removal.h>
-
-#include <tf/tf.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include "parameter.h"
 
@@ -105,7 +107,7 @@ public:
 class Command
 {
 public:
-	Command():pnh_("~") 
+	Command():pnh_("~"), tfl_(tfbuf_) 
 	{
 		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 5, &Command::handleJoyMode, this);
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
@@ -125,7 +127,7 @@ public:
         }
 		return true;
 	}
-    
+
     void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
 	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
@@ -159,6 +161,11 @@ private:
 	bool has_arrived_ = false;     
 	float shift_position_ = 0;
 	bool front_obstacle_ = false;	
+    
+    // TF 
+    tf2_ros::Buffer tfbuf_;
+    tf2_ros::TransformListener tfl_;
+    tf2_ros::TransformBroadcaster tfb_;
 };
 
 #endif 
