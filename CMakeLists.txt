@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   roscpp
   std_msgs
+  message_generation
   tf
   pcl_conversions)
 
@@ -36,6 +37,5 @@ add_definitions( -march=native )
 #add_subdirectory(src/lib)
 
 add_executable(leo_driving_node src/cmd_vel_test.cpp)
-
 target_link_libraries(leo_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 

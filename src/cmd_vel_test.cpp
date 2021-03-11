@@ -254,7 +254,8 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		cmd_vel.linear.x = linear_vel;
 		cmd_vel.angular.z = -Kpy*y_err_local;
 	}
-	pub_cmd_.publish(cmd_vel);	
+	if(!is_rotating_)
+		pub_cmd_.publish(cmd_vel);	
 }
 
 bool Command::checkArrival()
@@ -280,7 +281,9 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 }   
 
 void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
-{
+{	
+	cout<<"goal is set"<<endl;
+			
 	clicked_point_.pose.position = click_msg->pose.position;
 	has_goal_ = 1;
 
@@ -289,7 +292,7 @@ void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 	{
 		try
 		{
-			const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", amcl_pose_.header.frame_id, ros::Time(0));      
+			const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
 			tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
 			tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
 
@@ -302,12 +305,12 @@ void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 			cout<<"angle between goal and current: " <<angle<<endl;
 			cout<<"current angle: " <<yaw<<endl;
 		
-			if (abs(angle - yaw) > M_PI - params_.rotation_ang_err_)
+			if (abs(angle - yaw) > params_.back_rotating_ang_)
 			{
 				double pinpoint_x = translation.x();
 				double pinpoint_y = translation.y();
 				double pinpoint_z = translation.z();
-				double pinpoint_theta = yaw;
+				double pinpoint_theta = yaw + M_PI;
 				rotateReverse(pinpoint_x, pinpoint_y, pinpoint_z, pinpoint_theta);
 			}
 		}
@@ -319,192 +322,72 @@ void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 	}
 }   
 
+
 void Command::rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta)
 {
 	geometry_msgs::Twist cmd_vel;
-	float Kpy = params_.Kpy_param_; // rotation 
+	float Kpy = params_.Kpy_param_rot_; // rotation 
 	float linear_vel_rot = params_.linear_vel_rot_;
-	driving_mode_ = 1; // pause autonomous driving
+	is_rotating_ = true; 
 	double angle_err, dist_err, current_angle;
 	while(true)
 	{
-		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", amcl_pose_.header.frame_id, ros::Time(0));      
+		// if(this->driving_mode_ % 2 == 1)
+			// break;
+		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
 		tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
 		tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
 
 		tf2::Matrix3x3 m(orientation);
 		double roll, pitch, yaw;
 		m.getRPY(roll, pitch, yaw);
+		
+		cout<<"pinpoint_theta "<<pinpoint_theta<<endl;
+		cout<<"current yaw"<<yaw<<endl;
 
-		angle_err = pinpoint_theta + M_PI - yaw;
+		angle_err = pinpoint_theta - yaw;
 		dist_err = sqrt(pow(translation.x() - pinpoint_x, 2) + pow(translation.y() - pinpoint_y, 2));
-						
+		
+		if(angle_err > M_PI)
+		{
+			angle_err -= 2 * M_PI;		
+		}
+		else if(angle_err < -M_PI)
+		{
+			angle_err += 2 * M_PI;		
+		}
+		
+		cout<<"angle error "<<angle_err<<endl;
+		cout<<"distnace error"<<dist_err<<endl;
+
 		if (abs(angle_err) < params_.rotation_ang_err_)
 		{
 			cout<<"finished rotating!"<<endl;
 			break;
-		}
+		}		
 		else if (dist_err < params_.rotation_dist_err_)
 		{
-			cmd_vel.linear.x = 0.0;
-			cmd_vel.angular.z = -Kpy*angle_err;
-			pub_cmd_.publish(cmd_vel);
+			cout<<"rotating ..."<<endl;						
+			//cmd_vel.linear.x = 0.0;
+			//cmd_vel.angular.z = -Kpy*angle_err;
+			//pub_cmd_.publish(cmd_vel);
 		}
 		else // moved too much from the pinpoint while rotation
 		{
 			cout<<"adjusting position"<<endl;
 			
-			double angle = atan2(translation.y() - pinpoint_y, translation.x() - pinpoint_x);
+			/*double angle = atan2(translation.y() - pinpoint_y, translation.x() - pinpoint_x);
 			cmd_vel.angular.z = 0.0;
 			if (abs(angle - yaw) > M_PI - params_.rotation_ang_err_) // should go front
 				cmd_vel.linear.x = linear_vel_rot;
 			else // should go back
 				cmd_vel.linear.x = -linear_vel_rot;
-			pub_cmd_.publish(cmd_vel);
+			pub_cmd_.publish(cmd_vel);*/
 		}
 	}
 
-	driving_mode_ = 0; //restart autonomous driving
-}
-
-void Command::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc)
-{
-	boost::recursive_mutex::scoped_lock obs_lock(scope_mutex_);
+	is_rotating_ = false; //restart autonomous driving
 	
-// See http://wiki.ros.org/hydro/Migration for the source of this magic.
-	pcl::PCLPointCloud2 pcl_pc; // temporary PointCloud2 intermediary
-	
-	pcl_conversions::toPCL(*ros_pc, pcl_pc);
-	// Convert point cloud to PCL native point cloud
-	PointCloud::Ptr input_ptr(new PointCloud());
-	pcl::fromPCLPointCloud2(pcl_pc, *input_ptr);
-
-	// Create output point cloud
-	PointCloud::Ptr output_ptr(new PointCloud());    	    
-	pcl::PassThrough<pcl::PointXYZ> pass;
-
-	pass.setInputCloud (input_ptr);         
-	pass.setFilterFieldName ("y");         
-	pass.setFilterLimits (-0.35, 0.35);    
-	//pass.setFilterLimitsNegative (true);  
-	pass.filter (*output_ptr);              
-
-	// Object for storing the plane model coefficients.
-	pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
-	pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
-								
-	pcl::SACSegmentation<pcl::PointXYZ> seg;
-	seg.setOptimizeCoefficients (true);      
-	seg.setInputCloud (output_ptr);                 
-	seg.setModelType (pcl::SACMODEL_PLANE);    
-	seg.setMethodType (pcl::SAC_RANSAC);      
-	seg.setMaxIterations (1000);              
-	seg.setDistanceThreshold (0.01);          
-	seg.segment (*inliers, *coefficients);    
-
-	pcl::ExtractIndices<pcl::PointXYZ> extract;
-	extract.setInputCloud (output_ptr);
-	extract.setIndices (inliers);
-	extract.setNegative (true);//false
-	extract.filter (*output_ptr);
-	if (!output_ptr->size())
-	{
-		ROS_WARN("all points are filtered");
-		return;
-	}
-																																																							
-	pass.setInputCloud(output_ptr);
-	pass.setFilterFieldName("z");           
-	pass.setFilterLimits(-0.27, 0.5);       
-	pass.filter(*output_ptr);             
-
-	pass.setInputCloud (output_ptr);      
-	pass.setFilterFieldName ("x");        
-	pass.setFilterLimits (0, 1);          
-	//pass.setFilterLimitsNegative (true);
-	pass.filter (*output_ptr);           
-
-	if(output_ptr->size() != 0){
-		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-		sor.setInputCloud (output_ptr);  
-		sor.setMeanK (50);               
-		sor.setStddevMulThresh (1.0);    
-		sor.filter (*output_ptr);        
-	}
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);	    
-	if(output_ptr->size() != 0)
-	{
-		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
-		tree->setInputCloud (output_ptr);  
-		std::vector<int> nn_indices(50);
-		std::vector<float> nn_dists(50);
-		pcl::PointXYZ origin(0, 0, 0);
-
-		tree->nearestKSearch(origin, 50, nn_indices, nn_dists);
-
-		float min_negative = -999, min_positive = 999, movement = 0, min_positive_point =0, min_negative_point =0;
-		int count_negative=0, count_positive = 0;
-		
-		float point_x, point_y, left_boundary, right_boundary, line_length;
-		float line_start = LINE_START;
-		float line_end = LINE_END;		
-		line_length = line_end - line_start;
-
-		for (int i = 0; i < nn_indices.size(); i++)
-		{
-			point_y = output_ptr->points[nn_indices[i]].y;
-			point_x = output_ptr->points[nn_indices[i]].x;
-			left_boundary = line_start + (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
-			right_boundary = line_end - (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
-			
-			
-			if (abs(point_x) < params_.front_obstacle_dist_ && abs(left_boundary-point_y) < params_.robot_width_ && abs(right_boundary-point_y) < params_.robot_width_ )
-			{
-				// cout<<"FRONT OBSTACLES: "<<point_y<<endl;
-				front_obstacle_ = true;
-				break;
-			}
-							
-			if(point_y > 0)
-			{			
-				if(min_positive >point_y)
-					min_positive = point_y;
-				min_positive_point = i;
-				count_positive += 1;
-			}
-			else
-			{
-				if(min_negative < point_y)
-					min_negative = point_y;
-				min_negative_point = i;
-				count_negative += 1;
-			}
-
-			if(count_positive > count_negative)
-			{
-				movement = sqrt(pow(output_ptr->points[nn_indices[min_positive_point]].x,2.0) + pow(output_ptr->points[nn_indices[min_positive_point]].y,2.0));
-				// std::cout<<"[Turn left] Distance to obstacles(m): "<<movement <<std::endl;	
-			}
-			else	
-			{	
-				movement = sqrt(pow(output_ptr->points[nn_indices[min_negative_point]].x,2.0) + pow(output_ptr->points[nn_indices[min_negative_point]].y,2.0));
-				// std::cout<<"[Turn right] Distance to obstacles(m): "<<movement <<std::endl;
-			}	
-		}
-		front_obstacle_ = false;
-	}
-
-	// else
-	// 	std::cout<<"[Go straight] No obstacles were detected" << std::endl;
-
-// Convert data type PCL to ROS
-	sensor_msgs::PointCloud2 ros_output;
-	pcl::toPCLPointCloud2(*output_ptr, pcl_pc);	    
-	pcl_conversions::fromPCL(pcl_pc, ros_output);
-
-	// Publish the data
-	pub_obs_.publish(ros_output);	
 }
 
 int main(int argc, char** argv)

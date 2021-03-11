@@ -42,8 +42,6 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 
-#include <std_msgs/Bool.h>
-
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 #include <pcl/PCLPointCloud2.h>
@@ -69,6 +67,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include "parameter.h"
+#include "backRotation.srv"
 
 using namespace std;
 
@@ -81,11 +80,12 @@ class LineExtractRP
 {
 public:
     LineExtractRP() {
-		this->sub_scan_ = this->nh_.subscribe("/up_scan", 10, &LineExtractRP::lineExtract, this);
-		this->pub_line_ = this->nh_.advertise<sensor_msgs::PointCloud2>("cluster_line", 10);
-		this->pub_nearest_ = this->nh_.advertise<sensor_msgs::PointCloud2> ("nearest_point", 10);
-	 	this->pub_ref_ = this->nh_.advertise<sensor_msgs::PointCloud2> ("reference_point", 10);
-		this->pub_points_ = this->nh_.advertise<sensor_msgs::PointCloud2> ("points_msg", 10);
+		sub_scan_ = nh_.subscribe("/up_scan", 10, &LineExtractRP::lineExtract, this);
+		pub_line_ = nh_.advertise<sensor_msgs::PointCloud2>("cluster_line", 10);
+		pub_nearest_ = nh_.advertise<sensor_msgs::PointCloud2> ("nearest_point", 10);
+	 	pub_ref_ = nh_.advertise<sensor_msgs::PointCloud2> ("reference_point", 10);
+		pub_points_ = nh_.advertise<sensor_msgs::PointCloud2> ("points_msg", 10);
+
     };
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in); 
@@ -113,9 +113,10 @@ public:
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10, &Command::setGoal, this);
-		sub_obs_ = nh_.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 1, &Command::handleObstacle, this);
+		//sub_obs_ = nh_.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 1, &Command::handleObstacle, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/obstacles", 10);
+		ros::Timer timer = nh.createTimer(ros::Duration(0.1), timerCallback);
 	};
 
 	bool configure()
@@ -130,9 +131,10 @@ public:
 
     void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
-	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
-	void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
+	//void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
+	//void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
 
+	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
 	bool checkArrival();
 	void handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
@@ -149,7 +151,7 @@ private:
 	ros::Subscriber sub_obs_;
 	ros::Publisher pub_cmd_;
 	ros::Publisher pub_obs_;
-
+	ros::ServiceServer srv_rotation_;
 	geometry_msgs::PoseStamped clicked_point_;
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	Parameters params_; 
@@ -161,6 +163,7 @@ private:
 	bool has_arrived_ = false;     
 	float shift_position_ = 0;
 	bool front_obstacle_ = false;	
+	bool is_rotating_ = false;	
     
     // TF 
     tf2_ros::Buffer tfbuf_;
