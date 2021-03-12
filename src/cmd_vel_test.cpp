@@ -176,8 +176,10 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 	//Button "B" : driving mode change -->   even: auto, odd: joy control
 	if (joy_msg->buttons[1] == 1)
+	{
+		cout<<"mode changed"<<endl;	
 		driving_mode_ += 1; 
-
+	}	
 	if(this->driving_mode_ % 2 == 1){ // odd: joy control
 		geometry_msgs::Twist cmd_vel;
 		cmd_vel.linear.x = joy_msg -> axes[1]*0.5;
@@ -310,7 +312,7 @@ void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 				double pinpoint_x = translation.x();
 				double pinpoint_y = translation.y();
 				double pinpoint_z = translation.z();
-				double pinpoint_theta = yaw + M_PI;
+				double pinpoint_theta = yaw;
 				rotateReverse(pinpoint_x, pinpoint_y, pinpoint_z, pinpoint_theta);
 			}
 		}
@@ -326,11 +328,11 @@ void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 void Command::rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta)
 {
 	geometry_msgs::Twist cmd_vel;
-	float Kpy = params_.Kpy_param_rot_; // rotation 
+	float Kpy_rot = params_.Kpy_param_rot_; // rotation 
 	float linear_vel_rot = params_.linear_vel_rot_;
 	is_rotating_ = true; 
 	double angle_err, dist_err, current_angle;
-	while(true)
+	while(ros::ok() && is_rotating_)
 	{
 		// if(this->driving_mode_ % 2 == 1)
 			// break;
@@ -347,46 +349,36 @@ void Command::rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoin
 
 		angle_err = pinpoint_theta - yaw;
 		dist_err = sqrt(pow(translation.x() - pinpoint_x, 2) + pow(translation.y() - pinpoint_y, 2));
-		
-		if(angle_err > M_PI)
-		{
-			angle_err -= 2 * M_PI;		
-		}
-		else if(angle_err < -M_PI)
-		{
-			angle_err += 2 * M_PI;		
-		}
-		
+
 		cout<<"angle error "<<angle_err<<endl;
 		cout<<"distnace error"<<dist_err<<endl;
-
-		if (abs(angle_err) < params_.rotation_ang_err_)
+		if(abs(angle_err) > M_PI - params_.rotation_ang_err_)
 		{
 			cout<<"finished rotating!"<<endl;
-			break;
+			is_rotating_ = false; //restart autonomous driving
+			return;	
 		}		
 		else if (dist_err < params_.rotation_dist_err_)
 		{
 			cout<<"rotating ..."<<endl;						
-			//cmd_vel.linear.x = 0.0;
-			//cmd_vel.angular.z = -Kpy*angle_err;
-			//pub_cmd_.publish(cmd_vel);
+			cmd_vel.linear.x = 0.0;
+			cmd_vel.angular.z = -Kpy_rot;
+			pub_cmd_.publish(cmd_vel);
 		}
 		else // moved too much from the pinpoint while rotation
 		{
 			cout<<"adjusting position"<<endl;
 			
-			/*double angle = atan2(translation.y() - pinpoint_y, translation.x() - pinpoint_x);
+			double angle = atan2(translation.y() - pinpoint_y, translation.x() - pinpoint_x);
 			cmd_vel.angular.z = 0.0;
 			if (abs(angle - yaw) > M_PI - params_.rotation_ang_err_) // should go front
 				cmd_vel.linear.x = linear_vel_rot;
 			else // should go back
 				cmd_vel.linear.x = -linear_vel_rot;
-			pub_cmd_.publish(cmd_vel);*/
+			pub_cmd_.publish(cmd_vel);
 		}
+		ros::Duration(1.0).sleep();
 	}
-
-	is_rotating_ = false; //restart autonomous driving
 	
 }
 

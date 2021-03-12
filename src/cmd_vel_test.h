@@ -67,7 +67,6 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include "parameter.h"
-#include "backRotation.srv"
 
 using namespace std;
 
@@ -94,11 +93,11 @@ public:
 
     private:
         ros::NodeHandle nh_;
-		ros::Subscriber sub_scan_;
+	ros::Subscriber sub_scan_;
         ros::Publisher pub_nearest_;
         ros::Publisher pub_ref_;
         ros::Publisher pub_points_;
-		ros::Publisher pub_line_;
+	ros::Publisher pub_line_;
         laser_geometry::LaserProjection projector_;
 		boost::recursive_mutex scope_mutex_;
 };
@@ -116,7 +115,6 @@ public:
 		//sub_obs_ = nh_.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 1, &Command::handleObstacle, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/obstacles", 10);
-		ros::Timer timer = nh.createTimer(ros::Duration(0.1), timerCallback);
 	};
 
 	bool configure()
@@ -129,9 +127,8 @@ public:
 		return true;
 	}
 
-    void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
+    	void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
-	//void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
 	//void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
 
 	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
@@ -151,7 +148,6 @@ private:
 	ros::Subscriber sub_obs_;
 	ros::Publisher pub_cmd_;
 	ros::Publisher pub_obs_;
-	ros::ServiceServer srv_rotation_;
 	geometry_msgs::PoseStamped clicked_point_;
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	Parameters params_; 

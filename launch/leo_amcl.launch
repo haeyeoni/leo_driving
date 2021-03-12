@@ -23,7 +23,7 @@
 
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
 	<param name="Kpy_param" value="0.1"  /> 
-	<param name="Kpy_param_rot" value="0.01"  /> 
+	<param name="Kpy_param_rot" value="1.1" /> 
 	<param name="linear_vel" value="0.0" /> 
 	<param name="linear_vel_rot" value="0.01" /> 
 	<param name="boundary_percent" value="0.02" /> 
@@ -32,7 +32,7 @@
 	<param name="obastalce_coefficient" value="0.1" /> 
 	<param name="rotation_ang_err" value="0.2" /> 
 	<param name="rotation_dist_err_" value="0.2" />  
-	<param name="back_rotating_ang_" value="3.0" /> 
+	<param name="back_rotating_ang" value="2.8" /> 
   </node>
 
 <node pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
