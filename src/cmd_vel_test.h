@@ -112,7 +112,7 @@ public:
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10, &Command::setGoal, this);
-		//sub_obs_ = nh_.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 1, &Command::handleObstacle, this);
+		sub_obs_ = nh_.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 1, &Command::handleObstacle, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/obstacles", 10);
 	};
@@ -129,7 +129,7 @@ public:
 
     	void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
-	//void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
+	void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
 
 	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);

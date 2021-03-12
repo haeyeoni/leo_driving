@@ -18,6 +18,7 @@ public:
         pnh.param("rotation_dist_err", rotation_dist_err_, 0.1);
         pnh.param("rotation_ang_err", rotation_ang_err_, 0.15);
         pnh.param("back_rotating_ang", back_rotating_ang_, 3.0);
+        pnh.param("line_thresh", line_thresh_, 0.5);
 
         return true;
     }
@@ -35,4 +36,5 @@ public:
     double rotation_ang_err_;
     double linear_vel_rot_;
     double back_rotating_ang_;
+    double line_thresh_;
 };

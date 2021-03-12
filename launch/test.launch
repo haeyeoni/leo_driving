@@ -19,12 +19,16 @@
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
 	<param name="Kpy_param" value="0.1"  /> 
 	<param name="linear_vel" value="0.0" /> 
+	<param name="line_thresh" value="0.01" /> 
 	<param name="boundary_percent" value="0.02" /> 
 	<param name="side_obstacle_dist" value="0.2" /> 
 	<param name="front_obstacle_dist" value="0.5" /> 
-	<param name="obastalce_coefficient" value="0.1" /> 
+	<param name="obastalce_coefficient" value="0.05" /> 
   </node>
 
+<node pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
+<node pkg="tf" type="static_transform_publisher" name="base_link_to_velo" args="0 0 0 0 0 0 base_link velodyne 100" />
+<node pkg="tf" type="static_transform_publisher" name="base_link_to_imu" args="0 0 0 0.0 0 0 base_link imu 100" />
 
 </launch>
 
