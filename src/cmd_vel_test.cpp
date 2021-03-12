@@ -364,7 +364,6 @@ public:
 	{
 		boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
 		
-	// See http://wiki.ros.org/hydro/Migration for the source of this magic.
 	    pcl::PCLPointCloud2 pcl_pc; // temporary PointCloud2 intermediary
 		
 	    pcl_conversions::toPCL(*ros_pc, pcl_pc);
@@ -410,7 +409,6 @@ public:
 	    pass.setInputCloud (output_ptr);      
 	    pass.setFilterFieldName ("x");        
 	    pass.setFilterLimits (0, 1);          
-	    //pass.setFilterLimitsNegative (true);
 	    pass.filter (*output_ptr);           
 
 		if(output_ptr->size() != 0){
@@ -450,42 +448,47 @@ public:
 				
 				if (abs(point_x) < params_.front_obstacle_dist_ && abs(left_boundary-point_y) < params_.robot_width_ && abs(right_boundary-point_y) < params_.robot_width_ )
 				{
-					cout<<"FRONT OBSTACLES: "<<point_y<<endl;
+					cout<<"[FRONT OBSTACLES] Distance to obstacles(m): "<<point_y<<endl;
 					front_obstacle_ = true;
 					break;
 				}
 								
-				if(point_y > 0)
+				if(point_y > 0) //obstacles in left side
 				{			
 					if(min_positive >point_y)
+					{
 						min_positive = point_y;
-					min_positive_point = i;
+						min_positive_point = i;
+					}
 					count_positive += 1;
 				}
-				else
+				else //obstacles in right side
 				{
 					if(min_negative < point_y)
+					{	
 						min_negative = point_y;
-					min_negative_point = i;
+						min_negative_point = i;
+					}
 					count_negative += 1;
 				}
-
-				if(count_positive > count_negative)
-				{
-					movement = sqrt(pow(output_ptr->points[nn_indices[min_positive_point]].x,2.0) + pow(output_ptr->points[nn_indices[min_positive_point]].y,2.0));
-					std::cout<<"[Turn left] Distance to obstacles(m): "<<movement <<std::endl;	
-				}
-				else	
-				{	
-					movement = sqrt(pow(output_ptr->points[nn_indices[min_negative_point]].x,2.0) + pow(output_ptr->points[nn_indices[min_negative_point]].y,2.0));
-					std::cout<<"[Turn right] Distance to obstacles(m): "<<movement <<std::endl;
-				}	
 			}
+
+				if(count_positive > count_negative) //obstacles in left side
+				{
+					shift_position_ = -sqrt(pow(output_ptr->points[nn_indices[min_positive_point]].x,2.0) + pow(output_ptr->points[nn_indices[min_positive_point]].y,2.0));
+					std::cout<<"[LEFT OBSTACLES] Distance to obstacles(m): "<<shift_position_ <<std::endl;	
+				}
+				else	//obstacles in right side
+				{	
+					shift_position_ = sqrt(pow(output_ptr->points[nn_indices[min_negative_point]].x,2.0) + pow(output_ptr->points[nn_indices[min_negative_point]].y,2.0));
+					std::cout<<"[RIGHT OBSTACLES] Distance to obstacles(m): "<<shift_position_ <<std::endl;
+				}	
+			
 			front_obstacle_ = false;
 	    }
 
-	    else
-			std::cout<<"[Go straight] No obstacles were detected" << std::endl;
+	    //else
+			//std::cout<<"[Go straight] No obstacles were detected" << std::endl;
 	    
 
 	// Convert data type PCL to ROS
