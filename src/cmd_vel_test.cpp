@@ -175,11 +175,9 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 /// CLASS 2 ///
 void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 	//Button "B" : driving mode change -->   even: auto, odd: joy control
-	if (joy_msg->buttons[1] == 1)
-	{
-		cout<<"mode changed"<<endl;	
+	if (joy_msg->buttons[1] == 1)	
 		driving_mode_ += 1; 
-	}	
+	
 	if(this->driving_mode_ % 2 == 1){ // odd: joy control
 		geometry_msgs::Twist cmd_vel;
 		cmd_vel.linear.x = joy_msg -> axes[1]*0.5;
@@ -191,7 +189,6 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg) 
 {	
 	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
-		
 	if(this->driving_mode_ % 2 == 1) // joystick mode
 		return;
 
@@ -242,11 +239,11 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		}
 	} */
 // 2. CHECK GLOBAL GOAL
-	bool has_arrived = checkArrival();
-	float add_vel_local = 0;	
-
+	has_arrived_ = checkArrival();
+	cout<<"has arrived"<<has_arrived_<<endl;
+	
 // 3. PUBLISH COMMAND
-	if (has_arrived || front_obstacle_)
+	if ((has_goal_ && has_arrived_) || front_obstacle_)
 	{
 		cmd_vel.linear.x = 0.0;
 		cmd_vel.angular.z = 0.0;		
@@ -266,12 +263,22 @@ bool Command::checkArrival()
 	{
 		boost::recursive_mutex::scoped_lock pose_lock(scope_mutex_);
 		float x_err_global, y_err_global, dist_err_global = 0.0; // global x, y, dist err
-		x_err_global = clicked_point_.pose.position.x - amcl_pose_.pose.pose.position.x;
-		y_err_global = clicked_point_.pose.position.y - amcl_pose_.pose.pose.position.y;
+		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
+		tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
+		
+		// x_err_global = clicked_point_.pose.position.x - amcl_pose_.pose.pose.position.x;
+		// y_err_global = clicked_point_.pose.position.y - amcl_pose_.pose.pose.position.y;
+		// dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);
+		
+		x_err_global = clicked_point_.pose.position.x - translation.x();
+		y_err_global = clicked_point_.pose.position.y - translation.y();
 		dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);
-		return dist_err_global < 1.0;
+		if (dist_err_global < params_.global_boundary_)
+		{
+			cout<<"arrived to the goal"<<endl;	
+			return true;
+		}
 	}
-
 	return false;
 }
 
@@ -285,9 +292,10 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 {	
 	cout<<"goal is set"<<endl;
-			
+		
 	clicked_point_.pose.position = click_msg->pose.position;
 	has_goal_ = 1;
+	has_arrived_ = false;
 
 	// check the rotation orientation
 	if (read_pose_)
