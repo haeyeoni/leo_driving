@@ -127,7 +127,7 @@ public:
 		return true;
 	}
 
-    	void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
+    void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
 	void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
 
@@ -148,7 +148,7 @@ private:
 	ros::Subscriber sub_obs_;
 	ros::Publisher pub_cmd_;
 	ros::Publisher pub_obs_;
-	geometry_msgs::PoseStamped clicked_point_;
+	geometry_msgs::PoseStamped goal_point_;
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	Parameters params_; 
 
@@ -160,6 +160,8 @@ private:
 	float shift_position_ = 0;
 	bool front_obstacle_ = false;	
 	bool is_rotating_ = false;	
+	bool fully_autonomous_ = false;
+	bool is_first_goal_ = false;
     
     // TF 
     tf2_ros::Buffer tfbuf_;

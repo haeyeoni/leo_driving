@@ -178,6 +178,10 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 	if (joy_msg->buttons[1] == 1)	
 		driving_mode_ += 1; 
 	
+	if (joy_msg->buttons[1] == 2)	
+	{
+		fully_autonomous_ = !fully_autonomous_; 
+	}
 	if(this->driving_mode_ % 2 == 1){ // odd: joy control
 		geometry_msgs::Twist cmd_vel;
 		cmd_vel.linear.x = joy_msg -> axes[1]*0.5;
@@ -191,6 +195,14 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
 	if(this->driving_mode_ % 2 == 1) // joystick mode
 		return;
+	
+	if(fully_autonomous_) // Automatically set goal alternatively 
+	{// check which goal should be used 
+		if (is_first_goal_)
+			setGoal(params_.first_goal_);			
+		else
+			setGoal(params_.second_goal_);	
+	}
 
 	//else: autonomous driving
 	geometry_msgs::Twist cmd_vel;
@@ -266,16 +278,18 @@ bool Command::checkArrival()
 		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
 		tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
 		
-		// x_err_global = clicked_point_.pose.position.x - amcl_pose_.pose.pose.position.x;
-		// y_err_global = clicked_point_.pose.position.y - amcl_pose_.pose.pose.position.y;
+		// x_err_global = goal_point_.pose.position.x - amcl_pose_.pose.pose.position.x;
+		// y_err_global = goal_point_.pose.position.y - amcl_pose_.pose.pose.position.y;
 		// dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);
 		
-		x_err_global = clicked_point_.pose.position.x - translation.x();
-		y_err_global = clicked_point_.pose.position.y - translation.y();
+		x_err_global = goal_point_.pose.position.x - translation.x();
+		y_err_global = goal_point_.pose.position.y - translation.y();
 		dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);
 		if (dist_err_global < params_.global_boundary_)
 		{
 			cout<<"arrived to the goal"<<endl;	
+			if (fully_autonomous_)
+				is_first_goal_ = !is_first_goal_;
 			return true;
 		}
 	}
@@ -291,9 +305,8 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 
 void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 {	
-	cout<<"goal is set"<<endl;
-		
-	clicked_point_.pose.position = click_msg->pose.position;
+	cout<<"goal is set"<<endl;		
+	goal_point_.pose.position = click_msg->pose.position;
 	has_goal_ = 1;
 	has_arrived_ = false;
 
@@ -412,7 +425,6 @@ void Command::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc)
 	  	seg.setMaxIterations (1000);              
 	  	seg.setDistanceThreshold (0.01);          
 	  	seg.segment (*inliers, *coefficients);    
-		
 		
 	    pcl::PassThrough<pcl::PointXYZ> pass;
 

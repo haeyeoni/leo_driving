@@ -1,5 +1,6 @@
 #include <ros/ros.h>
 
+#include <geometry_msgs/PoseStamped.h>
 class Parameters
 {
 public:
@@ -21,6 +22,22 @@ public:
         pnh.param("line_thresh", line_thresh_, 0.5);
         pnh.param("global_boundary", global_boundary_, 0.5);
 
+        double x_1, y_1;
+        double x_2, y_2;
+
+        pnh.param("first_goal_x", x_1, 0.0);
+        pnh.param("first_goal_y", y_1, 0.0);
+        pnh.param("second_goal_x", x_2, 0.0);
+        pnh.param("second_goal_y", y_2, 10.0);
+
+        first_goal_.pose.position.x = x_1;
+        first_goal_.pose.position.y = y_1;
+        first_goal_.pose.position.z = 0;
+        
+        second_goal_.pose.position.x = x_2;
+        second_goal_.pose.position.y = y_2;
+        second_goal_.pose.position.z = 0;
+                
         return true;
     }
 
@@ -39,4 +56,8 @@ public:
     double back_rotating_ang_;
     double line_thresh_;
 	double global_boundary_;
+
+    geometry_msgs::PoseStamped first_goal_;
+    geometry_msgs::PoseStamped second_goal_;
+
 };
