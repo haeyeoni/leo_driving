@@ -75,6 +75,8 @@ typedef pcl::PCLPointCloud2 PointCloud2;
 typedef PointCloud::Ptr PointCloudPtr;
 typedef PointCloud2::Ptr PointCloud2Ptr;
 
+#define HY_CONTROL 0
+
 class LineExtractRP
 {
 public:
@@ -124,11 +126,17 @@ public:
             ROS_ERROR("Failed to load parameters");
             return false;
         }
-		return true;
+        first_goal_.pose.position.x = params_.x_1;
+        first_goal_.pose.position.y = params_.y_1;
+        
+        second_goal_.pose.position.x = params_.x_2;
+        second_goal_.pose.position.y = params_.y_2;
+        	return true;
 	}
 
     void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
+	void setGoal(geometry_msgs::PoseStamped goal_pose);
 	void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
 
 	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
@@ -154,6 +162,8 @@ private:
 
 	boost::recursive_mutex scope_mutex_;
 	int driving_mode_ = 0; // even: auto, odd: joy control
+	int return_mode_ = 0; // 
+	unsigned int adjusting_angle_cnt=0;
 	bool read_pose_ = false;
 	bool has_goal_ = false;
 	bool has_arrived_ = false;     
@@ -162,11 +172,19 @@ private:
 	bool is_rotating_ = false;	
 	bool fully_autonomous_ = false;
 	bool is_first_goal_ = false;
+	bool adjusting_angle = false;
+	float x_err_global, y_err_global,yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
+	unsigned int rotating_flag=1,transition_flag=1;
     
     // TF 
     tf2_ros::Buffer tfbuf_;
     tf2_ros::TransformListener tfl_;
     tf2_ros::TransformBroadcaster tfb_;
+
+	// GOAL
+    geometry_msgs::PoseStamped first_goal_;
+    geometry_msgs::PoseStamped second_goal_;
+
 };
 
 #endif 

@@ -204,7 +204,7 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
 	if(this->driving_mode_ % 2 == 1) // joystick mode
 		return;
-#if HY_CONTROL //1: Previous control , 0: Jinsuk control
+	
 	if(fully_autonomous_) // Automatically set goal alternatively 
 	{// check which goal should be used 
 		if (is_first_goal_)
@@ -212,7 +212,6 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		else
 			setGoal(second_goal_);	
 	}
-#endif
 
 	//else: autonomous driving
 	geometry_msgs::Twist cmd_vel;
@@ -260,7 +259,6 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 			// cout<<"out boundary, stay in right boundary"<<endl;
 		}
 	} */
-#if HY_CONTROL //1: Previous control , 0: Jinsuk control
 // 2. CHECK GLOBAL GOAL
 	has_arrived_ = checkArrival();
 	//cout<<"has arrived"<<has_arrived_<<endl;
@@ -279,13 +277,15 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		adjusting_angle_cnt++;
 		
 		cout<<"adjusting y err: "<< y_err_local << ", cnt: " << adjusting_angle_cnt <<endl;
-
+		if(y_err_local < params_.adjusting_y_err_bound_)
+		{
+			cout<<"adjusting end" <<endl;
+		}
 		cmd_vel.linear.x = 0.0; //TODO from jinsuk
 		cmd_vel.angular.z = -Kpy*y_err_local;
 		
-		if(adjusting_angle_cnt>= 70 || y_err_local < params_.adjusting_y_err_bound_)
+		if(adjusting_angle_cnt>= 70)
 		{
-			cout<<"adjusting end" <<endl;
 			adjusting_angle_cnt=0;
 			adjusting_angle = false;
 		}
@@ -308,121 +308,6 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	if(!is_rotating_)
 		pub_cmd_.publish(cmd_vel);	
 	printf("\n");
-
-#else //Jinsuk control
-	if(fully_autonomous_) // Automatically set goal alternatively 
-	{// check which goal should be used 
-		if (is_first_goal_)
-			goal_point_.pose.position = first_goal_.pose.position;
-		else
-			goal_point_.pose.position = second_goal_.pose.position;
-		cout<<"goal is set: "<<goal_point_.pose.position.x<<" "<<goal_point_.pose.position.y<<endl;		
-	}
-
-	double pinpoint_x, pinpoint_y, pinpoint_z ,pinpoint_theta;
-	double angle_err;
-
-	const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
-	tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
-	tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
-
-	tf2::Matrix3x3 m(orientation);
-	double roll, pitch, yaw;
-	m.getRPY(roll, pitch, yaw);
-
-	x_err_global = goal_point_.pose.position.x - translation.x();
-	y_err_global = goal_point_.pose.position.y - translation.y();
-
-	dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);
-//	dist_err_global = sqrt(x_err_global*x_err_global);//Temporary because of AMCL's wrong data
-	if (front_obstacle_)
-	{
-		cmd_vel.linear.x = 0.0;
-		cmd_vel.angular.z = 0.0;		
-		pub_cmd_.publish(cmd_vel);
-		return;
-	}
-	if(read_pose_ && params_.amcl_mode_)
-	{
-		if (dist_err_global < params_.global_boundary_)
-		{
-			if(rotating_flag) //It's not using now
-			{
-				pinpoint_x = translation.x();
-				pinpoint_y = translation.y();
-				pinpoint_z = translation.z();
-				pinpoint_theta = yaw; 
-				transition_flag =1;
-				rotating_flag =0;
-			}
-			//angle_err = goal_point_.pose.position.yaw - yaw; //TODO global yaw
-			angle_err = pinpoint_theta - yaw; //TODO delete because it's for compiling
-			if(angle_err > M_PI)
-				angle_err -= 2*M_PI;
-			else if(angle_err < -M_PI)
-				angle_err += 2*M_PI;
-
-			cout<<"rotating ..."<<endl;						
-			cmd_vel.linear.x = 0.0;
-			//cmd_vel.angular.z = -Kpy_param_rot_;
-			cmd_vel.angular.z = -params_.Kpy_param_rot_*angle_err;
-			if(angle_err<params_.global_boundary_ && fully_autonomous_)
-			{
-				is_first_goal_ = !is_first_goal_;
-				adjusting_angle = true;
-			}
-		}
-		else
-		{
-			if(transition_flag) 
-			{
-				transition_flag =0;
-				rotating_flag=1;
-			}
-			//cmd_vel.linear.x = linear_vel; //TODO from jinsuk
-			if(params_.Kpx_param_*dist_err_global > linear_vel)
-				cmd_vel.linear.x = linear_vel;
-			else
-				cmd_vel.linear.x =params_.Kpx_param_*dist_err_global;
-			
-			cmd_vel.angular.z = -Kpy*y_err_local;
-		}
-		if(adjusting_angle) // To adjust heading after finishing rotating for 5s.
-		{
-			adjusting_angle_cnt++;
-			
-			cout<<"adjusting y err: "<< y_err_local << ", cnt: " << adjusting_angle_cnt <<endl;
-			
-			cmd_vel.linear.x = 0.0; //TODO from jinsuk
-			cmd_vel.angular.z = -Kpy*y_err_local;
-			
-			if(adjusting_angle_cnt>= 70 || y_err_local < 0.01)
-			{
-				cout<<"adjusting end" <<endl;
-				adjusting_angle_cnt=0;
-				adjusting_angle = false;
-			}
-		}
-		pub_cmd_.publish(cmd_vel);
-	}
-	else if(params_.gmapping_mode_)
-	{
-		if ((has_goal_ && has_arrived_) || front_obstacle_)
-		{
-			cmd_vel.linear.x = 0.0;
-			cmd_vel.angular.z = 0.0;		
-		}	
-		else
-		{
-			//cmd_vel.linear.x = linear_vel; //TODO from jinsuk
-			cmd_vel.linear.x = linear_vel;
-			cmd_vel.angular.z = -Kpy*y_err_local;
-		}
-		if(!is_rotating_)
-			pub_cmd_.publish(cmd_vel);
-	}
-	
-#endif
 }
 
 bool Command::checkArrival()

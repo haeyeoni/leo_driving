@@ -1,7 +1,8 @@
 <launch>
   <arg name="use_rp" default="true"/>
-  <arg name="use_velo" default="true"/>
+  <arg name="use_velo" default="false"/>
   <arg name="use_joy" default="true"/>
+  <arg name="use_static_tf" default="true"/>
 
   <node if="$(arg use_rp)" name="rplidarNode"          pkg="rplidar_ros"  type="rplidarNode" output="screen">
 	<param name="serial_port"         type="string" value="/dev/rplidar"/>
@@ -19,12 +20,27 @@
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
 	<param name="Kpy_param" value="0.1"  /> 
 	<param name="linear_vel" value="0.0" /> 
+	<param name="line_thresh" value="0.01" /> 
 	<param name="boundary_percent" value="0.02" /> 
 	<param name="side_obstacle_dist" value="0.2" /> 
 	<param name="front_obstacle_dist" value="0.5" /> 
-	<param name="obastalce_coefficient" value="0.1" /> 
+	<param name="obastalce_coefficient" value="0.05" /> 
+
+
+	<param name="rotation_ang_err" value="0.2" /> 
+	<param name="rotation_dist_err_" value="0.05" />  
+	<param name="back_rotating_ang" value="2.0" /> 
+	<param name="global_boundary" value="1.0" />
+	<param name="first_goal_x" value="0.0" /> 
+	<param name="first_goal_y" value="0.0" /> 
+	<param name="second_goal_x" value="0.0" /> 
+	<param name="second_goal_y" value="1.0" /> 
+
   </node>
 
+<node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
+<node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_velo" args="0 0 0 0 0 0 base_link velodyne 100" />
+<node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_imu" args="0 0 0 0.0 0 0 base_link imu 100" />
 
 </launch>
 

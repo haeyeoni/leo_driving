@@ -15,20 +15,19 @@
     <param name="frame_id"            type="string" value="laser"/>
     <param name="inverted"            type="bool"   value="false"/>
     <param name="angle_compensate"    type="bool"   value="true"/>
-    <param name="output_scan"         type="string" value="/scan"/>
+    <param name="output_scan"         type="string" value="/up_scan"/>
   </node>
 
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
-	<param name="Kpy_param" value="0.1"  /> 
-	<param name="linear_vel" value="0.0" /> 
+	<param name="Kpy_param" value="2.5"  /> 
+	<param name="linear_vel" value="0.2" /> 
 	<param name="boundary_percent" value="0.02" /> 
 	<param name="side_obstacle_dist" value="0.2" /> 
 	<param name="front_obstacle_dist" value="0.5" /> 
 	<param name="obastalce_coefficient" value="0.1" /> 
-  </node>
 
-<node pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
-<node pkg="tf" type="static_transform_publisher" name="base_link_to_velo" args="0 0 0 0 0 0 base_link velodyne 100" />
-<node pkg="tf" type="static_transform_publisher" name="base_link_to_imu" args="0 0 0 0.0 0 0 base_link imu 100" />
+	<param name="gmapping_mode" value="1.0" /> 	
+	<param name="amcl_mode" value="0.0" /> 
+  </node>
 </launch>
 
