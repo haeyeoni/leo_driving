@@ -75,33 +75,41 @@ typedef pcl::PCLPointCloud2 PointCloud2;
 typedef PointCloud::Ptr PointCloudPtr;
 typedef PointCloud2::Ptr PointCloud2Ptr;
 
-#define HY_CONTROL 0
-
 class LineExtractRP
 {
 public:
-    LineExtractRP() {
+    LineExtractRP():pnh_("~") {
 		sub_scan_ = nh_.subscribe("/up_scan", 10, &LineExtractRP::lineExtract, this);
 		pub_line_ = nh_.advertise<sensor_msgs::PointCloud2>("cluster_line", 10);
 		pub_nearest_ = nh_.advertise<sensor_msgs::PointCloud2> ("nearest_point", 10);
 	 	pub_ref_ = nh_.advertise<sensor_msgs::PointCloud2> ("reference_point", 10);
 		pub_points_ = nh_.advertise<sensor_msgs::PointCloud2> ("points_msg", 10);
-
     };
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in); 
 	
+	bool configure()
+	{
+        if (!params_.load(pnh_))
+        {
+            ROS_ERROR("Failed to load parameters");
+            return false;
+        }
+		return true;
+	}
     ~LineExtractRP(){}
 
     private:
         ros::NodeHandle nh_;
-	ros::Subscriber sub_scan_;
+		ros::NodeHandle pnh_;
+		ros::Subscriber sub_scan_;
         ros::Publisher pub_nearest_;
         ros::Publisher pub_ref_;
         ros::Publisher pub_points_;
-	ros::Publisher pub_line_;
+		ros::Publisher pub_line_;
         laser_geometry::LaserProjection projector_;
 		boost::recursive_mutex scope_mutex_;
+		RansacParameters params_;
 };
 
 
@@ -114,9 +122,7 @@ public:
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10, &Command::setGoal, this);
-		// sub_obs_ = nh_.subscribe<sensor_msgs::PointCloud2>("/velodyne_points", 1, &Command::handleObstacle, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
-		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/obstacles", 10);
 	};
 
 	bool configure()
@@ -126,19 +132,12 @@ public:
             ROS_ERROR("Failed to load parameters");
             return false;
         }
-        first_goal_.pose.position.x = params_.x_1;
-        first_goal_.pose.position.y = params_.y_1;
-        
-        second_goal_.pose.position.x = params_.x_2;
-        second_goal_.pose.position.y = params_.y_2;
-        	return true;
+		return true;
 	}
 
     void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
-	void setGoal(geometry_msgs::PoseStamped goal_pose);
-	void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
-
+	
 	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
 	bool checkArrival();
@@ -153,27 +152,28 @@ private:
 	ros::Subscriber sub_amcl_;
 	ros::Subscriber sub_joy_;
 	ros::Subscriber sub_goal_;
-	ros::Subscriber sub_obs_;
 	ros::Publisher pub_cmd_;
-	ros::Publisher pub_obs_;
-	geometry_msgs::PoseStamped goal_point_;
+
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
-	Parameters params_; 
+	CmdParameters params_; 
 
 	boost::recursive_mutex scope_mutex_;
-	int driving_mode_ = 0; // even: auto, odd: joy control
+	bool joy_driving_ = false; // even: auto, odd: joy control
+	bool fully_autonomous_ = false;
+	
 	int return_mode_ = 0; // 
-	unsigned int adjusting_angle_cnt=0;
+	
+	unsigned int adjusting_angle_count_ = 0;
+	
 	bool read_pose_ = false;
-	bool has_goal_ = false;
-	bool has_arrived_ = false;     
+	
 	float shift_position_ = 0;
 	bool front_obstacle_ = false;	
-	bool is_rotating_ = false;	
-	bool fully_autonomous_ = false;
+
 	bool is_first_goal_ = false;
-	bool adjusting_angle = false;
-	float x_err_global, y_err_global,yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
+	bool adjusting_angle_ = false;
+	
+	float x_err_global, y_err_global, yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
 	unsigned int rotating_flag=1,transition_flag=1;
     
     // TF 
@@ -182,9 +182,12 @@ private:
     tf2_ros::TransformBroadcaster tfb_;
 
 	// GOAL
-    geometry_msgs::PoseStamped first_goal_;
-    geometry_msgs::PoseStamped second_goal_;
-
+	int goal_index_ = 0;
+	int goal_count_ = 0;
+	std::vector<geometry_msgs::PoseStamped> goal_set_;
+	geometry_msgs::PoseStamped current_goal_;
+	bool has_goal_ = false;
+	
 };
 
 #endif 
