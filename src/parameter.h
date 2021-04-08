@@ -7,6 +7,7 @@ public:
     bool load(ros::NodeHandle& pnh)
     {
         pnh.param("line_thresh", line_thresh_, 0.5);
+	return true;
     }    
 public:
     double line_thresh_;

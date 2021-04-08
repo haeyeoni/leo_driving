@@ -92,7 +92,7 @@ public:
 	{
         if (!params_.load(pnh_))
         {
-            ROS_ERROR("Failed to load parameters");
+            ROS_ERROR("Failed to load parameters (ransac)");
             return false;
         }
 		return true;
@@ -118,10 +118,10 @@ class Command
 public:
 	Command():pnh_("~"), tfl_(tfbuf_) 
 	{
-		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 5, &Command::handleJoyMode, this);
+		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 1, &Command::handleJoyMode, this);
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
-		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 10, &Command::setGoal, this);
+		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 	};
 
@@ -129,7 +129,7 @@ public:
 	{
         if (!params_.load(pnh_))
         {
-            ROS_ERROR("Failed to load parameters");
+            ROS_ERROR("Failed to load parameters (cmd)");
             return false;
         }
 		return true;
@@ -170,7 +170,7 @@ private:
 	float shift_position_ = 0;
 	bool front_obstacle_ = false;	
 
-	bool is_first_goal_ = false;
+	bool is_rotating_ = false;
 	bool adjusting_angle_ = false;
 	
 	float x_err_global, y_err_global, yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk

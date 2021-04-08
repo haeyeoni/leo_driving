@@ -23,30 +23,19 @@
 
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
 	<param name="adjusting_y_err_bound" value="0.02" /> 	
-	<param name="Kpx_param" value="0.4" /> 
+	<param name="Kpx_param" value="0.5" /> 
 	<param name="Kpy_param" value="2.5"  /> 
-	<param name="Kpy_param_rot" value="0.5" /> 
+	<param name="Kpy_param_rot" value="0.3" /> 
 	<param name="linear_vel" value="0.2" /> 
-	<param name="linear_vel_rot" value="0.02" /> 
+	
 	<param name="boundary_percent" value="0.02" /> 
-	<param name="side_obstacle_dist" value="0.2" /> 
-	<param name="front_obstacle_dist" value="0.5" /> 
-	<param name="obastalce_coefficient" value="0.1" /> 
-	<param name="rotation_ang_err" value="0.2" /> 
-	<param name="rotation_dist_err" value="0.03" />  <!--0.1 -->
-	<param name="back_rotating_ang" value="2.0" /> 
-	<param name="global_boundary" value="0.3" />
-	<param name="first_goal_x" value="4.10768" /> 
-	<param name="first_goal_y" value="-0.121542" /> 
-	<param name="second_goal_x" value="8.25747" /> 
-	<param name="second_goal_y" value="0.642406" /> 
+	
+	<param name="global_dist_boundary" value="0.3" />
+	<param name="global_ang_boundary" value="0.03" />
 
-	<param name="gmapping_mode" value="0.0" /> 	
-	<param name="amcl_mode" value="1.0" /> 	
-<!--
-	<param name="second_goal_x" value="9.7778" /> 
-	<param name="second_goal_y" value="0.322273" /> 
--->
+	<param name="linear_vel" value="0.01" /> 
+	<param name="mapping_mode" value="false" /> 	
+	
   </node>
 
 <node pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />

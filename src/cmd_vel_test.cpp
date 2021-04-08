@@ -16,7 +16,7 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	sensor_msgs::PointCloud2 reference_point;      
 	sensor_msgs::PointCloud2 points_msg;
 	sensor_msgs::PointCloud2 points_line;
-
+		
 	// Message data before converted to the ROS messages
 	PointCloud closest;
 	PointCloud filtered_cloud;
@@ -32,7 +32,6 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	projector_.projectLaser(*scan_in, cloud_temp);
 	pcl_conversions::toPCL(cloud_temp, *cloud2); 
 	pcl::fromPCLPointCloud2(*cloud2, *cloud); 
-
 	// CROP POINTCLOUD (cloud -> cloud_inrange) 
 	pcl::ConditionAnd<pcl::PointXYZ>::Ptr range_condition(new pcl::ConditionAnd<pcl::PointXYZ> ());
 		// set condition
@@ -46,7 +45,7 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	condrem.setKeepOrganized(true);
 	condrem.filter(*cloud_inrange);
 
-	if (!cloud_inrange->size())
+	if (cloud_inrange->size() == 0)
 	{
 		ROS_WARN("all points are cropped");
 		return;
@@ -67,9 +66,14 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	extract.setNegative(false); //<- if true, it returns point cloud except the line.
 
 	extract.filter(*cloud_inrange);
-	
+	if (cloud_inrange->size() == 0)
+	{
+		ROS_WARN("all points are cropped");
+		return;
+	}
 	// CENTER LINE CLUSTER IS EXTRACTED AMONG MULTIPLE LINE CLUSTERS 
-		// clustering... 
+		// clustering...
+
 	pcl::search::KdTree<pcl::PointXYZ>::Ptr tree_cluster(new pcl::search::KdTree<pcl::PointXYZ>);
 	tree_cluster->setInputCloud(cloud_inrange);
 	std::vector<pcl::PointIndices> cluster_indices;
@@ -98,79 +102,87 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 		}
 		j++;
 	}
-	
 // FIND NEAREST POINT FROM THE ORIGIN ( => /nearest_point)
-	if((*cloud_cluster).size()>0)
+	if((*cloud_cluster).size() == 0)
 	{
-		pcl::PointXYZ origin(0, 0, 0);	
-		pcl::KdTree<pcl::PointXYZ>::Ptr tree_(new pcl::KdTreeFLANN<pcl::PointXYZ>);
-		tree_->setInputCloud(cloud_cluster);
-		std::vector<int> nn_indices(1); 
-		std::vector<float> nn_dists(1);
-		tree_->nearestKSearch(origin, 1, nn_indices, nn_dists); //<- finds the most closest sing point: save points index to "nn_indices", and distance to "nn_dists"
-		
-		closest.push_back(cloud_cluster->points[nn_indices[0]]); 
-		point_set.push_back(closest[0]);
-	// CALCULATE THE AVERAGE COORDINATES FROM THE CENTER LINE( => /reference_point)
-		float current_x = cloud_cluster->points[nn_indices[0]].x;
-		float current_y = cloud_cluster->points[nn_indices[0]].y;
-		float threshold = 0.5;
-		float threshold_y = 0.5;
-		float sum_x = 0;
-		float sum_y = 0;
-		int num_points = 0;
+		ROS_WARN("Not enough points!");
+		return;
+	} 
 
-		// Update Line min & Line max
-		LINE_START = 1000;
-		LINE_END = 0;
+	pcl::PointXYZ origin(0, 0, 0);	
+	pcl::KdTree<pcl::PointXYZ>::Ptr tree_(new pcl::KdTreeFLANN<pcl::PointXYZ>);
+	tree_->setInputCloud(cloud_cluster);
+	std::vector<int> nn_indices(1); 
+	std::vector<float> nn_dists(1);
+	tree_->nearestKSearch(origin, 1, nn_indices, nn_dists); //<- finds the most closest sing point: save points index to "nn_indices", and distance to "nn_dists"
+	
+	closest.push_back(cloud_cluster->points[nn_indices[0]]); 
+	point_set.push_back(closest[0]);
+// CALCULATE THE AVERAGE COORDINATES FROM THE CENTER LINE( => /reference_point)
+	float current_x = cloud_cluster->points[nn_indices[0]].x;
+	float current_y = cloud_cluster->points[nn_indices[0]].y;
+	float threshold = 0.5;
+	float threshold_y = 0.5;
+	float sum_x = 0;
+	float sum_y = 0;
+	int num_points = 0;
 
-		for (int i = 0; i < (*cloud_cluster).size(); i++) 
-		{
-			filtered_cloud.push_back(cloud_cluster->points[i]);
-			sum_x += cloud_cluster->points[i].x;
-			sum_y += cloud_cluster->points[i].y;
-			num_points ++;
-			if (LINE_START > cloud_cluster->points[i].y) 
-				LINE_START = cloud_cluster->points[i].y;
-			if (LINE_END < cloud_cluster->points[i].y)
-				LINE_END = cloud_cluster->points[i].y;
-		}
-		CHECK_LINE = true;
+	// Update Line min & Line max
+	LINE_START = 1000;
+	LINE_END = 0;
 
-		PointCloud reference_cloud;
-		//pcl::PointXYZ reference (sum_x / (float)num_points, sum_y / (float)num_points, 0);
-		pcl::PointXYZ reference (sum_x / (float)num_points, (LINE_START + LINE_END)/2, 0);//Jinsuk		
-				
-		reference_cloud.push_back(reference);
-		point_set.push_back(reference);
-
-	// FIND LINE END AND LINE START
-		pcl::PointXYZ left_infinite(0, -10000, 0);	
-		pcl::KdTree<pcl::PointXYZ>::Ptr tree_2(new pcl::KdTreeFLANN<pcl::PointXYZ>);
-		tree_2->setInputCloud(cloud_cluster);
-		std::vector<int> line_indices((*cloud_cluster).size()); 
-		std::vector<float> line_dists((*cloud_cluster).size());
-		tree_2->nearestKSearch(left_infinite, (*cloud_cluster).size(), line_indices, line_dists); //<- finds the most closest sing point: save points index to "nn_indices", and distance to "nn_dists"
-		
-		point_set.push_back(cloud_cluster->points[line_indices[0]]);
-		point_set.push_back(cloud_cluster->points[line_indices[-1]]);
-		
-	// PUBLISH ROS MESSAGES
-		pcl::toROSMsg(closest, nearest_point);
-		pcl::toROSMsg((*cloud_cluster), points_line);
-		pcl::toROSMsg(reference_cloud, reference_point);
-		pcl::toROSMsg(point_set, points_msg);
-			
-		reference_point.header.frame_id = scan_in->header.frame_id;
-		nearest_point.header.frame_id = scan_in->header.frame_id;
-		points_line.header.frame_id = scan_in->header.frame_id;
-		points_msg.header.frame_id = scan_in->header.frame_id;
-			
-		this->pub_nearest_.publish(nearest_point);// current position		
-		this->pub_ref_.publish(reference_point);
-		this->pub_points_.publish(points_msg);
-		this->pub_line_.publish(points_line);
+	for (int i = 0; i < (*cloud_cluster).size(); i++) 
+	{
+		filtered_cloud.push_back(cloud_cluster->points[i]);
+		sum_x += cloud_cluster->points[i].x;
+		sum_y += cloud_cluster->points[i].y;
+		num_points ++;
+		if (LINE_START > cloud_cluster->points[i].y) 
+			LINE_START = cloud_cluster->points[i].y;
+		if (LINE_END < cloud_cluster->points[i].y)
+			LINE_END = cloud_cluster->points[i].y;
 	}
+	CHECK_LINE = true;
+
+	PointCloud reference_cloud;
+	//pcl::PointXYZ reference (sum_x / (float)num_points, sum_y / (float)num_points, 0);
+	pcl::PointXYZ reference (sum_x / (float)num_points, (LINE_START + LINE_END)/2, 0);//Jinsuk		
+			
+	reference_cloud.push_back(reference);
+	point_set.push_back(reference);
+
+// FIND LINE END AND LINE START
+	if((*cloud_cluster).size() == 0)
+	{
+		ROS_WARN("Not enough points!");
+		return;
+	} 
+	pcl::PointXYZ left_infinite(0, -10000, 0);	
+	pcl::KdTree<pcl::PointXYZ>::Ptr tree_2(new pcl::KdTreeFLANN<pcl::PointXYZ>);
+	tree_2->setInputCloud(cloud_cluster);
+	std::vector<int> line_indices((*cloud_cluster).size()); 
+	std::vector<float> line_dists((*cloud_cluster).size());
+	tree_2->nearestKSearch(left_infinite, (*cloud_cluster).size(), line_indices, line_dists); //<- finds the most closest sing point: save points index to "nn_indices", and distance to "nn_dists"
+	
+	point_set.push_back(cloud_cluster->points[line_indices[0]]);
+	point_set.push_back(cloud_cluster->points[line_indices[-1]]);
+	
+// PUBLISH ROS MESSAGES
+	pcl::toROSMsg(closest, nearest_point);
+	pcl::toROSMsg((*cloud_cluster), points_line);
+	pcl::toROSMsg(reference_cloud, reference_point);
+	pcl::toROSMsg(point_set, points_msg);
+		
+	reference_point.header.frame_id = scan_in->header.frame_id;
+	nearest_point.header.frame_id = scan_in->header.frame_id;
+	points_line.header.frame_id = scan_in->header.frame_id;
+	points_msg.header.frame_id = scan_in->header.frame_id;
+		
+	this->pub_nearest_.publish(nearest_point);// current position		
+	this->pub_ref_.publish(reference_point);
+	this->pub_points_.publish(points_msg);
+	this->pub_line_.publish(points_line);
+	
 }
 
 /// CLASS 2 ///
@@ -256,7 +268,7 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	// 3.1 Set current goal 
 		if (goal_count_ < params_.num_goals_)
 		{
-			ROS_INFO("Waiting for inserting goal... ");
+			// ROS_INFO("Waiting for inserting goal... ");
 			return;
 		}
 
@@ -272,9 +284,9 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		y_err_global = current_goal_.pose.position.y - amcl_pose_.pose.pose.position.y;
 		double dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);		
 		
-		if (dist_err_global < params_.global_dist_boundary_) // arrived to the goal position
+		if (dist_err_global < params_.global_dist_boundary_ || is_rotating_) // arrived to the goal position
 		{
-			cout<<"arrived to the goal position: "<<dist_err_global<<endl;					
+			cout<<"**Arrived to the goal position: "<<dist_err_global<<endl;					
 			
 	// 3.3 Check whether robot should rotate
 			const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
@@ -285,17 +297,18 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 			m.getRPY(roll, pitch, yaw);
 
 			double angle_err_global = goal_yaw - yaw;  
-			
 			if(angle_err_global > M_PI)
 				angle_err_global -= 2*M_PI;
 			else if(angle_err_global < -M_PI)
 				angle_err_global += 2*M_PI;
 
-			cout<<"rotating ..."<<endl;						
 			cmd_vel.linear.x = 0.0;
-			cmd_vel.angular.z = -params_.Kpy_param_rot_*angle_err_global;
-			
-			if(angle_err_global < params_.global_angle_boundary_ && !adjusting_angle_)
+			//cmd_vel.angular.z = -params_.Kpy_param_rot_*angle_err_global;
+			double bounded_ang_err = min(abs(angle_err_global), 1.0);
+			cmd_vel.angular.z = -params_.Kpy_param_rot_ * bounded_ang_err;
+			cout<<"rotating ... bounded_angle_err: "<<cmd_vel.angular.z <<"angle: "<<angle_err_global<<endl;						
+			is_rotating_ = true;
+			if(abs(angle_err_global) < params_.global_angle_boundary_ && !adjusting_angle_)
 			{
 				cout<<"finish rotation"<<endl;
 				goal_index_++;
@@ -308,13 +321,15 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 				adjusting_angle_count_++;		
 				cout<<"adjusting y err: "<< y_err_local << ", cnt: " << adjusting_angle_count_ <<endl;
 				cmd_vel.linear.x = 0.0;
+						
 				cmd_vel.angular.z = -Kpy*y_err_local;
 				
-				if(adjusting_angle_count_>= 70 || y_err_local < 0.01)
+				if(adjusting_angle_count_>= 70 || y_err_local < params_.adjusting_y_err_bound_)
 				{
 					cout<<"adjusting end" <<endl;
 					adjusting_angle_count_=0;
 					adjusting_angle_ = false;
+					is_rotating_ = false;				
 				}
 			}
 			pub_cmd_.publish(cmd_vel);
