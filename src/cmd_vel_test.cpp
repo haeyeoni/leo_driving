@@ -247,6 +247,15 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	float line_start = LINE_START;
 	float line_end = LINE_END;
 	float line_length = line_end - line_start;
+// 2.1 CHECK LINE VALIDATION
+	if (line_length > params_.line_width_max_ || line_length < params_.line_width_min_)
+	{
+		ROS_WARN("currnent line length: %f \n line width is not proper. Go straight", line_length);
+		// cmd_vel.linear.x = linear_vel * 0.5;
+		// cmd_vel.angular.z = 0;
+		// pub_cmd_.publish(cmd_vel);
+		// return;	
+	}
 	float left_boundary = line_start + (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
 	float right_boundary = line_end - (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
 

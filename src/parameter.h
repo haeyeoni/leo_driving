@@ -31,6 +31,8 @@ public:
         pnh.param("global_angle_boundary", global_angle_boundary_, 0.5);
         pnh.param("mapping_mode", mapping_mode_, true);
         pnh.param("num_goals", num_goals_, 2);
+        pnh.param("line_width_min", line_width_min_, 0.7);
+        pnh.param("line_width_max", line_width_max_, 1.0);
         return true;
     }
 
@@ -48,5 +50,7 @@ public:
 
 	double global_dist_boundary_;
 	double global_angle_boundary_;
+	double line_width_min_;
+	double line_width_max_;
     int num_goals_;
 };
