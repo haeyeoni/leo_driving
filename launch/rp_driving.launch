@@ -18,24 +18,18 @@
   <include if="$(arg use_joy)" file="$(find teleop_twist_joy)/launch/teleop.launch"/>
 
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
-	<param name="Kpy_param" value="0.1"  /> 
-	<param name="linear_vel" value="0.0" /> 
-	<param name="line_thresh" value="0.01" /> 
+
+	<param name="Kpy_param" value="2.5"  /> 
+	<param name="Kpy_param_rot" value="0.3" /> 
+	<param name="linear_vel" value="0.2" /> 
+	<param name="line_thresh" value="0.1" /> 
+	
 	<param name="boundary_percent" value="0.02" /> 
-	<param name="side_obstacle_dist" value="0.2" /> 
-	<param name="front_obstacle_dist" value="0.5" /> 
-	<param name="obastalce_coefficient" value="0.05" /> 
-
-
-	<param name="rotation_ang_err" value="0.2" /> 
-	<param name="rotation_dist_err_" value="0.05" />  
-	<param name="back_rotating_ang" value="2.0" /> 
-	<param name="global_boundary" value="1.0" />
-	<param name="first_goal_x" value="0.0" /> 
-	<param name="first_goal_y" value="0.0" /> 
-	<param name="second_goal_x" value="0.0" /> 
-	<param name="second_goal_y" value="1.0" /> 
-
+	
+	<param name="line_width_min" value="0.5"/>
+	<param name="line_width_max" value="1.0"/>
+	<param name="mapping_mode" value="true" /> 	
+	
   </node>
 
 <node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />

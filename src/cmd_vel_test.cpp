@@ -109,6 +109,7 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 		return;
 	} 
 
+
 	pcl::PointXYZ origin(0, 0, 0);	
 	pcl::KdTree<pcl::PointXYZ>::Ptr tree_(new pcl::KdTreeFLANN<pcl::PointXYZ>);
 	tree_->setInputCloud(cloud_cluster);
@@ -181,8 +182,8 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	this->pub_nearest_.publish(nearest_point);// current position		
 	this->pub_ref_.publish(reference_point);
 	this->pub_points_.publish(points_msg);
-	this->pub_line_.publish(points_line);
-	
+	this->pub_line_.publish(points_line);	
+
 }
 
 /// CLASS 2 ///
@@ -292,7 +293,12 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		x_err_global = current_goal_.pose.position.x - amcl_pose_.pose.pose.position.x;
 		y_err_global = current_goal_.pose.position.y - amcl_pose_.pose.pose.position.y;
 		double dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);		
+		cout << "goal (x,y): " <<"(" <<current_goal_.pose.position.x << ", " <<current_goal_.pose.position.y << ")" <<endl;		
+		cout << "curr (x,y): " <<"(" <<amcl_pose_.pose.pose.position.x << ", " << amcl_pose_.pose.pose.position.y << ")" <<endl;
+		cout << "distance :" << dist_err_global <<endl;
+		cout <<" " <<endl;
 		
+
 		if (dist_err_global < params_.global_dist_boundary_ || is_rotating_) // arrived to the goal position
 		{
 			cout<<"**Arrived to the goal position: "<<dist_err_global<<endl;					

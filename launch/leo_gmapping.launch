@@ -20,9 +20,14 @@
 
   <node pkg="leo_driving" type="leo_driving_node" name="leo_driving_node" output="screen">
 	<param name="Kpy_param" value="2.5"  /> 
-	<param name="linear_vel" value="0.01" /> 
+	<param name="linear_vel" value="0.2" /> 
 	<param name="boundary_percent" value="0.02" /> 
+
+	<param name="line_thresh" value="0.5" /> 
+	<param name="line_width_min" value="0.5"/>
+	<param name="line_width_max" value="1.0"/>
 	<param name="mapping_mode" value="true" /> 	
+
 	
   </node>
 </launch>
