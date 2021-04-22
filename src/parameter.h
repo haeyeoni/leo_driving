@@ -26,6 +26,8 @@ public:
         pnh.param("Kpy_param_rot", Kpy_param_rot_, 0.01);
         pnh.param("boundary_percent", boundary_percent_, 0.02);
         pnh.param("robot_width", robot_width_, 0.45);
+		pnh.param("obstacle_coefficient", obstacle_coefficient_ , 0.005);
+		pnh.param("front_obstacle_dist", front_obstacle_dist_, 0.1);
 
         pnh.param("global_dist_boundary", global_dist_boundary_, 0.5);
         pnh.param("global_angle_boundary", global_angle_boundary_, 0.5);
@@ -47,10 +49,13 @@ public:
     double Kpy_param_rot_;
     double boundary_percent_; 
     double robot_width_;
+	double obstacle_coefficient_;
+	double front_obstacle_dist_;
 
 	double global_dist_boundary_;
 	double global_angle_boundary_;
 	double line_width_min_;
 	double line_width_max_;
     int num_goals_;
+	
 };

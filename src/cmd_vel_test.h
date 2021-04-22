@@ -118,11 +118,13 @@ class Command
 public:
 	Command():pnh_("~"), tfl_(tfbuf_) 
 	{
-		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 1, &Command::handleJoyMode, this);
+		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
+        	sub_obs_ = nh_.subscribe("/velodyne_points", 10, &Command::handleObstacle, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
+		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/cropped_obs", 10);
 	};
 
 	bool configure()
@@ -142,6 +144,7 @@ public:
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
 	bool checkArrival();
 	void handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
+    void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
 
 	~Command(){}
 
@@ -152,7 +155,9 @@ private:
 	ros::Subscriber sub_amcl_;
 	ros::Subscriber sub_joy_;
 	ros::Subscriber sub_goal_;
+    ros::Subscriber sub_obs_;
 	ros::Publisher pub_cmd_;
+	ros::Publisher pub_obs_;
 
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	CmdParameters params_; 

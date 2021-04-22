@@ -262,6 +262,29 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 
 	float x_err_local = reference_point.x - nearest_point.x; 
 	float y_err_local = reference_point.y - nearest_point.y;
+	
+	std::cout<<"y eroooorrrrr: "<<y_err_local<<std::endl;
+
+	// Check boundary for safe driving
+	if(left_boundary < line_start + 0.5*line_length && right_boundary > line_end - 0.5*line_length)
+	{			
+		if (nearest_point.y + shift_position_ > left_boundary && nearest_point.y + shift_position_ < right_boundary)   			
+		{
+			y_err_local += shift_position_;
+			// cout<<"in boundary"<<endl;
+		}
+		else if (nearest_point.y + shift_position_ < left_boundary && shift_position_ < 0)
+		{
+			y_err_local = left_boundary - nearest_point.y;
+			// cout<<"out boundary, stay in left boundary"<<endl;
+		}
+		else if (nearest_point.y + shift_position_ > right_boundary && shift_position_ > 0)
+		{
+			y_err_local = right_boundary - nearest_point.y;
+			// cout<<"out boundary, stay in right boundary"<<endl;
+		}
+	}
+
 
 // 3. GMAPPING MODE
 	if (params_.mapping_mode_)
@@ -368,6 +391,139 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 	amcl_pose_.pose.pose.orientation = pose_msg->pose.pose.orientation;
 	read_pose_ = 1;
 }   
+
+void Command::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc){
+	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);	
+	pcl::PCLPointCloud2 pcl_pc; // temporary PointCloud2 intermediary
+	
+	pcl_conversions::toPCL(*ros_pc, pcl_pc);
+	// Convert point cloud to PCL native point cloud
+	PointCloud::Ptr input_ptr(new PointCloud());
+	pcl::fromPCLPointCloud2(pcl_pc, *input_ptr);
+
+	// Create output point cloud
+	PointCloud::Ptr output_ptr(new PointCloud());    	    
+
+	// Object for storing the plane model coefficients.
+	pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients ());
+	pcl::PointIndices::Ptr inliers (new pcl::PointIndices ());
+								
+	pcl::SACSegmentation<pcl::PointXYZ> seg;
+	seg.setOptimizeCoefficients (true);      
+	seg.setInputCloud (input_ptr);                 
+	seg.setModelType (pcl::SACMODEL_PLANE);    
+	seg.setMethodType (pcl::SAC_RANSAC);      
+	seg.setMaxIterations (1000);              
+	seg.setDistanceThreshold (0.01);          
+	seg.segment (*inliers, *coefficients);    
+	
+	pcl::PassThrough<pcl::PointXYZ> pass;
+
+	pass.setInputCloud (input_ptr);         
+	pass.setFilterFieldName ("y");         
+	pass.setFilterLimits (-0.3, 0.3);    
+	pass.filter (*output_ptr);              
+																																																							
+	pass.setInputCloud(output_ptr);
+	pass.setFilterFieldName("z");           
+	pass.setFilterLimits(-0.2, 0.5);       
+	pass.filter(*output_ptr);             
+
+	pass.setInputCloud (output_ptr);      
+	pass.setFilterFieldName ("x");        
+	pass.setFilterLimits (0, 1);          
+	pass.filter (*output_ptr);           
+
+	if(output_ptr->size() != 0){
+		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
+		sor.setInputCloud (output_ptr);  
+		sor.setMeanK (50);               
+		sor.setStddevMulThresh (1.0);    
+		sor.filter (*output_ptr);        
+	}
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);	    
+	if(output_ptr->size() != 0){	
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZ>);
+		tree->setInputCloud (output_ptr);  
+		std::vector<int> nn_indices(30);
+		std::vector<float> nn_dists(30);
+		pcl::PointXYZ origin(0, 0, 0);
+
+		tree->nearestKSearch(origin, 30, nn_indices, nn_dists);
+
+		float min_negative = -999, min_positive = 999, movement = 0, min_positive_point =0, min_negative_point =0;
+		int count_negative=0, count_positive = 0;
+		float point_x, point_y, left_boundary, right_boundary, line_length;
+		float line_start = LINE_START;
+		float line_end = LINE_END;		
+		line_length = line_end - line_start;
+		front_obstacle_ = false;
+		if(nn_indices.size()>5)
+			for (int i = 0; i < nn_indices.size(); i++)
+			{
+				point_y = output_ptr->points[nn_indices[i]].y;
+				point_x = output_ptr->points[nn_indices[i]].x;
+				left_boundary = line_start + (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
+				right_boundary = line_end - (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
+				
+				
+				//if (abs(point_x) < front_obstacle_dist_ && abs(left_boundary-point_y) < params_.robot_width_ && abs(right_boundary-point_y) < params_.robot_width_ )
+				if (abs(point_x) < params_.front_obstacle_dist_ && abs(point_y) < params_.robot_width_/4)
+				{
+					cout<<"[FRONT OBSTACLES] Distance to obstacles(m): "<<point_x<<endl;
+					front_obstacle_ = true;
+					break;
+				}
+								
+				if(point_y > 0) //obstacles in left side
+				{			
+					if(min_positive >point_y)
+					{
+						min_positive = point_y;
+						min_positive_point = i;
+					}
+					count_positive += 1;
+				}
+				else //obstacles in right side
+				{
+					if(min_negative < point_y)
+					{	
+						min_negative = point_y;
+						min_negative_point = i;
+					}
+					count_negative += 1;
+				}
+			}
+
+			if(front_obstacle_ == false)
+				if(count_positive > count_negative) //obstacles in left side
+				{
+					shift_position_ = std::min(params_.obstacle_coefficient_/output_ptr->points[nn_indices[min_positive_point]].x, 0.01);
+					std::cout<<"[LEFT OBSTACLES] Distance to obstacles(m): "<<abs(output_ptr->points[nn_indices[min_positive_point]].x) <<std::endl;	
+				}
+				else	//obstacles in right side
+				{	
+					shift_position_ = std::max(-params_.obstacle_coefficient_/output_ptr->points[nn_indices[min_negative_point]].x, -0.01);
+					std::cout<<"[RIGHT OBSTACLES] Distance to obstacles(m): "<<abs(output_ptr->points[nn_indices[min_negative_point]].x) <<std::endl;
+				}	
+		
+	}
+
+	//else
+		//std::cout<<"[Go straight] No obstacles were detected" << std::endl;
+	
+
+// Convert data type PCL to ROS
+	sensor_msgs::PointCloud2 ros_output;
+	pcl::toPCLPointCloud2(*output_ptr, pcl_pc);
+	
+	pcl_conversions::fromPCL(pcl_pc, ros_output);
+
+	// Publish the data
+	pub_obs_.publish(ros_output);
+
+	}
 
 void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 {	
