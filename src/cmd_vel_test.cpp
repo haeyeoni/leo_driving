@@ -403,8 +403,16 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 
 void Command::handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& dists_msg)
 {
-	obs_x_ = dists_msg->data[0];
-	obs_y_ = dists_msg->data[1];
+
+	if (dists_msg->data.size())
+{
+		obs_x_ = dists_msg->data[0];
+		obs_y_ = dists_msg->data[1];
+}
+	else
+{		obs_x_ = 0;
+		obs_y_ = 0;
+	}
 }
 	
 

@@ -46,12 +46,12 @@ void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc)
 	pass.setFilterLimits (0, 1);          
 	pass.filter (*output_ptr);           
 
-	if(input_ptr->size() != 0){
+	if(output_ptr->size() != 0){
 		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-		sor.setInputCloud (input_ptr);  
+		sor.setInputCloud (output_ptr);  
 		sor.setMeanK (50);               
 		sor.setStddevMulThresh (1.0);    
-		sor.filter (*input_ptr);        
+		sor.filter (*output_ptr);        
 	}
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);	    
@@ -116,7 +116,7 @@ void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc)
 
 // Convert data type PCL to ROS
 	sensor_msgs::PointCloud2 ros_output;
-	pcl::toPCLPointCloud2(*input_ptr, pcl_pc);
+	pcl::toPCLPointCloud2(*output_ptr, pcl_pc);
 	
 	pcl_conversions::fromPCL(pcl_pc, ros_output);
 
