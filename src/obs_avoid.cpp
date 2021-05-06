@@ -1,12 +1,12 @@
 
 #include "obs_avoid.h"
 
-void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc){
-	ROS_INFO("flag0");
+void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc)
+{
 
-	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);	
 	std_msgs::Float32MultiArray dists;
-        pcl::PCLPointCloud2 pcl_pc; // temporary PointCloud2 intermediary
+	dists.data.clear();
+	pcl::PCLPointCloud2 pcl_pc; // temporary PointCloud2 intermediary
 	
 	pcl_conversions::toPCL(*ros_pc, pcl_pc);
 	// Convert point cloud to PCL native point cloud
@@ -26,10 +26,8 @@ void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc){
 	seg.setModelType (pcl::SACMODEL_PLANE);    
 	seg.setMethodType (pcl::SAC_RANSAC);      
 	seg.setMaxIterations (1000);              
-	seg.setDistanceThreshold (0.01);          
+	seg.setDistanceThreshold (0.1);          
 	seg.segment (*inliers, *coefficients);    
-	
-	ROS_INFO("flag1");
 
 	pcl::PassThrough<pcl::PointXYZ> pass;
 
@@ -48,14 +46,13 @@ void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc){
 	pass.setFilterLimits (0, 1);          
 	pass.filter (*output_ptr);           
 
-	if(output_ptr->size() != 0){
+	if(input_ptr->size() != 0){
 		pcl::StatisticalOutlierRemoval<pcl::PointXYZ> sor;
-		sor.setInputCloud (output_ptr);  
+		sor.setInputCloud (input_ptr);  
 		sor.setMeanK (50);               
 		sor.setStddevMulThresh (1.0);    
-		sor.filter (*output_ptr);        
+		sor.filter (*input_ptr);        
 	}
-	ROS_INFO("flag2");
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);	    
 	if(output_ptr->size() != 0){	
@@ -96,33 +93,30 @@ void VeloObs::handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc){
 					count_negative += 1;
 				}
 			}
-		ROS_INFO("flag3");
 
             if(count_positive > count_negative) //obstacles in left side
             {
                 // shift_position_ = std::min(params_.obstacle_coefficient_/output_ptr->points[nn_indices[min_positive_point]].x, 0.01);
                 std::cout<<"[LEFT OBSTACLES] Distance to obstacles(m): "<<abs(output_ptr->points[nn_indices[min_positive_point]].x) <<std::endl;	
-                dists.data[0] = abs(output_ptr->points[nn_indices[min_positive_point]].x);
-                dists.data[1] = abs(output_ptr->points[nn_indices[min_positive_point]].y);
+                dists.data.push_back(abs(output_ptr->points[nn_indices[min_positive_point]].x));
+                dists.data.push_back(abs(output_ptr->points[nn_indices[min_positive_point]].y));
             }
             else	//obstacles in right side
             {	
                 // shift_position_ = std::max(-params_.obstacle_coefficient_/output_ptr->points[nn_indices[min_negative_point]].x, -0.01);
                 std::cout<<"[RIGHT OBSTACLES] Distance to obstacles(m): "<<abs(output_ptr->points[nn_indices[min_negative_point]].x) <<std::endl;
-                dists.data[0] = abs(output_ptr->points[nn_indices[min_negative_point]].x) ;
-                dists.data[1] = abs(output_ptr->points[nn_indices[min_negative_point]].x) ;
+                dists.data.push_back(abs(output_ptr->points[nn_indices[min_negative_point]].x));
+                dists.data.push_back(abs(output_ptr->points[nn_indices[min_negative_point]].y));
             }	
             
 	}
 
-	//else
-		//std::cout<<"[Go straight] No obstacles were detected" << std::endl;
-	
-ROS_INFO("flag4");
+	else
+		std::cout<<"[Go straight] No obstacles were detected" << std::endl;
 
 // Convert data type PCL to ROS
 	sensor_msgs::PointCloud2 ros_output;
-	pcl::toPCLPointCloud2(*output_ptr, pcl_pc);
+	pcl::toPCLPointCloud2(*input_ptr, pcl_pc);
 	
 	pcl_conversions::fromPCL(pcl_pc, ros_output);
 

@@ -3,7 +3,7 @@
 #define OBS_AVOID_H
 
 #include "parameter.h"
-
+#include <iostream>
 #include <ros/ros.h>
 #include <ros/serialization.h>
 #include <ros/publisher.h>
@@ -52,7 +52,7 @@ public:
     VeloObs():pnh_("~") {
 		sub_obs_ = nh_.subscribe("/velodyne_points", 10, &VeloObs::handleObstacle, this);
 		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/cropped_obs", 10);
-                pub_obs_dists_ = nh_.advertise<std_msgs::Float32MultiArray> ("/obs_dists", 10);
+        pub_obs_dists_ = nh_.advertise<std_msgs::Float32MultiArray> ("/obs_dists", 10);
     };
 
     void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc); 
@@ -68,15 +68,15 @@ public:
 	}
     ~VeloObs(){}
 
-    private:
-        ros::NodeHandle nh_;
+private:
+    ros::NodeHandle nh_;
 	ros::NodeHandle pnh_;
         
-        ros::Subscriber sub_obs_;
-        ros::Publisher pub_obs_;
+    ros::Subscriber sub_obs_;
+    ros::Publisher pub_obs_;
 	ros::Publisher pub_obs_dists_;
 	boost::recursive_mutex scope_mutex_;
 	VeloParameters params_;
-        float shift_position_ = 0;      
+    float shift_position_ = 0;      
 };
 #endif

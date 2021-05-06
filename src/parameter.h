@@ -1,15 +1,17 @@
 #include <ros/ros.h>
 
 #include <geometry_msgs/PoseStamped.h>
+
 class VeloParameters
 {
 public:
     bool load(ros::NodeHandle& pnh)
     {
+        ROS_INFO("parameter loading (velodyne)");
         pnh.param("obstacle_coefficient", obstacle_coefficient_ , 0.005);
-	pnh.param("front_obstacle_dist", front_obstacle_dist_, 0.1);
+	    pnh.param("front_obstacle_dist", front_obstacle_dist_, 0.1);
 
-	return true;
+	    return true;
     }    
 public:
     
@@ -24,7 +26,8 @@ public:
     bool load(ros::NodeHandle& pnh)
     {
         pnh.param("line_thresh", line_thresh_, 0.5);
-	return true;
+        ROS_INFO("parameter loading (ransac)");
+	    return true;
     }    
 public:
     double line_thresh_;
@@ -35,7 +38,7 @@ class CmdParameters
 public:
     bool load(ros::NodeHandle& pnh)
     {
-        ROS_INFO("parameter loading");
+        ROS_INFO("parameter loading (cmd)");
         pnh.param("adjusting_y_err_bound", adjusting_y_err_bound_, 0.05);
         pnh.param("Kpx_param", Kpx_param_, 2.0);
         pnh.param("linear_vel", linear_vel_, 0.0);

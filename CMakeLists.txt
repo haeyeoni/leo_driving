@@ -8,7 +8,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   tf
-  pcl_conversions)
+  pcl_conversions
+  pcl_ros)
 
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
@@ -37,4 +38,7 @@ add_definitions( -march=native )
 
 add_executable(leo_driving_node src/cmd_vel_test.cpp)
 target_link_libraries(leo_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+
+add_executable(obs_avoiding_node src/obs_avoid.cpp)
+target_link_libraries(obs_avoiding_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
