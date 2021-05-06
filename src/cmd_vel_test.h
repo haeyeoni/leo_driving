@@ -66,6 +66,8 @@
 #include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <std_msgs/Float32MultiArray.h>
+
 #include "parameter.h"
 
 using namespace std;
@@ -119,12 +121,12 @@ public:
 	Command():pnh_("~"), tfl_(tfbuf_) 
 	{
 		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
+		sub_obs_dists_ = nh_.subscribe("/obs_dists", 10, &Command::handleObstacleDists, this);
+		
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
-        	sub_obs_ = nh_.subscribe("/velodyne_points", 10, &Command::handleObstacle, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
-		pub_obs_ = nh_.advertise<sensor_msgs::PointCloud2> ("/cropped_obs", 10);
 	};
 
 	bool configure()
@@ -144,20 +146,18 @@ public:
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
 	bool checkArrival();
 	void handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
-    void handleObstacle(const sensor_msgs::PointCloud2::ConstPtr& ros_pc);
-
+	void handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& dists_msg);
 	~Command(){}
 
 private:
 	ros::NodeHandle nh_;
 	ros::NodeHandle pnh_;
 	ros::Subscriber sub_points_;
+	ros::Subscriber sub_obs_dists_;
 	ros::Subscriber sub_amcl_;
 	ros::Subscriber sub_joy_;
 	ros::Subscriber sub_goal_;
-    ros::Subscriber sub_obs_;
 	ros::Publisher pub_cmd_;
-	ros::Publisher pub_obs_;
 
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	CmdParameters params_; 
@@ -179,6 +179,8 @@ private:
 	bool adjusting_angle_ = false;
 	
 	float x_err_global, y_err_global, yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
+	float obs_x_,obs_y_ = 0;
+
 	unsigned int rotating_flag=1,transition_flag=1;
     
     // TF 

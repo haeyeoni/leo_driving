@@ -1,9 +1,12 @@
 <launch>
-  <arg name="use_rp" default="true"/>
+  <param name="/use_sim_time" value="true"/>
+  <arg name="use_rp" default="false"/>
   <arg name="use_velo" default="false"/>
-  <arg name="use_joy" default="true"/>
+  <arg name="use_joy" default="false"/>
   <arg name="use_static_tf" default="true"/>
-
+ 
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find leo_driving)/rviz/view_point.rviz"/>
+  
   <node if="$(arg use_rp)" name="rplidarNode"          pkg="rplidar_ros"  type="rplidarNode" output="screen">
 	<param name="serial_port"         type="string" value="/dev/rplidar"/>
 	<param name="serial_baudrate"     type="int"    value="115200"/><!--A1/A2 -->
@@ -30,6 +33,11 @@
 	<param name="line_width_max" value="1.0"/>
 	<param name="mapping_mode" value="true" /> 	
 	
+  </node>
+
+  <node pkg="leo_driving" type="obs_avoiding_node" name="obs_avoiding_node" output="screen">
+  	<param name="obstacle_coefficient" value="0.005"/>
+  	<param name="front_obstacle_dist" value="0.1"/>
   </node>
 
 <node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
