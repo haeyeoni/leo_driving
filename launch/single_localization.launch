@@ -1,0 +1,30 @@
+<launch>
+  <param name="/use_sim_time" value="false"/>
+  <arg name="use_velo" default="true"/>
+  <arg name="use_joy" default="true"/>
+  <arg name="use_static_tf" default="true"/>
+  <arg name="map_file" default="/xavier_ssd/leo_ws111/test.yaml"/>
+
+<node type="rviz" name="rviz" pkg="rviz" args="-d $(find leo_driving)/rviz/single_localization.rviz"/>
+  
+  <include if="$(arg use_velo)" file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
+  <include if="$(arg use_joy)" file="$(find teleop_twist_joy)/launch/teleop.launch"/>
+
+  <include file="$(find leo_navigation)/launch/amcl.launch">
+    <arg name="map_file" value="$(arg map_file)"/>
+  </include>
+  <include file="$(find leo_navigation)/launch/odometry.launch"/>
+
+  <node pkg="leo_driving" type="single_localization_node" name="single_localization_node" output="screen">
+  	<param name="check_obstacles" value="false"/>
+  	<param name="mapping_mode" value="false"/>
+  	<param name="global_dist_boundary" value="0.3"/>
+  	<param name="global_angle_boundary" value="0.1"/>
+  </node>
+
+<node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
+<node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_velo" args="0 0 0 0 0 0 base_link velodyne 100" />
+<node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_imu" args="0 0 0 0.0 0 0 base_link imu 100" />
+
+</launch>
+

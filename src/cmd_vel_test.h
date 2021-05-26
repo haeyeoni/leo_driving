@@ -179,6 +179,8 @@ private:
 	bool adjusting_angle_ = false;
 	
 	float x_err_global, y_err_global, yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
+	float yaw_err_integral = 0.0, Outz=0.0, Outz_tmp = 0.0, SatErr = 0.0, MAX_omega =60.0;
+	double goal_yaw=0.0;
 	float obs_x_,obs_y_ = 0;
 
 	unsigned int rotating_flag=1,transition_flag=1;

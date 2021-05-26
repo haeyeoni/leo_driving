@@ -36,7 +36,10 @@ add_definitions( -march=native )
 
 #add_subdirectory(src/lib)
 
-add_executable(leo_driving_node src/cmd_vel_test.cpp)
+add_executable(single_localization_node src/single_localization.cpp)
+target_link_libraries(single_localization_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+
+add_executable(leo_driving_node src/cmd_vel_test.cpp src/serial.cpp)
 target_link_libraries(leo_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 add_executable(obs_avoiding_node src/obs_avoid.cpp)

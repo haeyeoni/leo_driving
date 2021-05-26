@@ -44,6 +44,7 @@ public:
         pnh.param("linear_vel", linear_vel_, 0.0);
         pnh.param("Kpy_param", Kpy_param_, 1.1);
         pnh.param("Kpy_param_rot", Kpy_param_rot_, 0.01);
+        pnh.param("Kpy_int_param", Kpy_int_param_, 0.0);
         pnh.param("boundary_percent", boundary_percent_, 0.02);
         pnh.param("robot_width", robot_width_, 0.45);
 		
@@ -53,7 +54,7 @@ public:
         pnh.param("num_goals", num_goals_, 2);
         pnh.param("line_width_min", line_width_min_, 0.7);
         pnh.param("line_width_max", line_width_max_, 1.0);
-	pnh.param("obs_coefficient", obs_coefficient_, 0.1);
+	pnh.param("obs_coefficient", obs_coefficient_, 0.5);
         return true;
     }
 
@@ -66,6 +67,7 @@ public:
     double linear_vel_;
     double Kpy_param_;
     double Kpy_param_rot_;
+    double Kpy_int_param_;
     double boundary_percent_; 
     double robot_width_;
 	double global_dist_boundary_;
