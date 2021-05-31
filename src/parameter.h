@@ -10,12 +10,12 @@ public:
         ROS_INFO("parameter loading (velodyne)");
         pnh.param("obstacle_coefficient", obstacle_coefficient_ , 0.005);
 	    pnh.param("front_obstacle_dist", front_obstacle_dist_, 0.1);
-
+        
 	    return true;
     }    
 public:
     
-	double obstacle_coefficient_;
+    double obstacle_coefficient_;
 	double front_obstacle_dist_;
 };
 
@@ -26,11 +26,15 @@ public:
     bool load(ros::NodeHandle& pnh)
     {
         pnh.param("line_thresh", line_thresh_, 0.5);
+        pnh.param("pseudo_rp", pseudo_rp_, true);
+        
         ROS_INFO("parameter loading (ransac)");
 	    return true;
     }    
 public:
     double line_thresh_;
+    bool pseudo_rp_;
+	
 };
 
 class CmdParameters
@@ -39,6 +43,7 @@ public:
     bool load(ros::NodeHandle& pnh)
     {
         ROS_INFO("parameter loading (cmd)");
+
         pnh.param("adjusting_y_err_bound", adjusting_y_err_bound_, 0.05);
         pnh.param("Kpx_param", Kpx_param_, 2.0);
         pnh.param("linear_vel", linear_vel_, 0.0);
@@ -55,11 +60,12 @@ public:
         pnh.param("line_width_min", line_width_min_, 0.7);
         pnh.param("line_width_max", line_width_max_, 1.0);
 	pnh.param("obs_coefficient", obs_coefficient_, 0.5);
+	pnh.param("spare_length", spare_length_, 3.0);
+
         return true;
     }
 
 public:
-
     bool mapping_mode_;
     double adjusting_y_err_bound_;
 
@@ -76,5 +82,6 @@ public:
 	double line_width_max_;
     int num_goals_;
 	double obs_coefficient_;
+	double spare_length_;
 	
 };

@@ -5,7 +5,10 @@
 
 #define OpenMV_on 0
 
-float LINE_START, LINE_END;
+float LINE_START = 1;
+float LINE_END = -1;
+
+
 bool CHECK_LINE = false;
 // OpemMV //
 void *Openmv_control(void *data)
@@ -132,7 +135,6 @@ void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 		return;
 	} 
 
-
 	pcl::PointXYZ origin(0, 0, 0);	
 	pcl::KdTree<pcl::PointXYZ>::Ptr tree_(new pcl::KdTreeFLANN<pcl::PointXYZ>);
 	tree_->setInputCloud(cloud_cluster);
@@ -232,6 +234,11 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg) 
 {	
 	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
+
+	std_msgs::Bool arrival_flag, rotating_flag;
+	arrival_flag.data = false;
+	rotating_flag.data = false;
+
 	if(joy_driving_) // joystick mode
 		return;
 
@@ -245,9 +252,13 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	pcl_conversions::toPCL(cloud_msg, *tmp_cloud);
 	PointCloudPtr data_cloud(new PointCloud); 
 	pcl::fromPCLPointCloud2(*tmp_cloud, *data_cloud); 
-	
+
+	//float secs = ros::Time::now().toSec();
+
+	//cout<<"what time is it now??: " << secs << endl;
+
 	if(!is_rotating_ && abs(obs_y_) < 0.4* params_.robot_width_){
-		cout << "Front obstacle is detected" <<endl;
+		cout << "Front obstacle is detected" <<abs(obs_y_)<<endl;
 		cmd_vel.linear.x = 0.0;
 		cmd_vel.angular.z = 0.0;
 		pub_cmd_.publish(cmd_vel);
@@ -266,11 +277,7 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 // 2. CALCULATE AISLE LINE LENGTH AND CENTER
 	pcl::PointXYZ nearest_point = data_cloud->points[0];
 	pcl::PointXYZ reference_point = data_cloud->points[1];
-	if (!CHECK_LINE)
-	{
-		ROS_WARN("line was not detected yet");
-		return;
-	}
+	
 	//line_start>0(left),line_end<0(right)
 	float line_start = LINE_START;
 	float line_end = LINE_END;
@@ -289,7 +296,7 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 
 	float x_err_local = reference_point.x - nearest_point.x; 
 	float y_err_local = reference_point.y - nearest_point.y;
-	
+
 
 	// Check boundary for safe driving (obs_x,obs_y)
 	bool is_obs_in_aisle = obs_y_ > line_end && obs_y_ < line_start;
@@ -320,7 +327,8 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 			return;
 
 		}	*/
-
+		temp_is_obs_in_aisle = true;
+		spare_length = 0;
 		// 1. Right Obstacle Update	
 		if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
 		{	
@@ -336,6 +344,17 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 			y_err_local = (nearest_point.y + shift < right_boundary) ? right_boundary - nearest_point.y : y_err_local + shift;
 		}
 	}
+
+	// After obs disappear, go further 'spare_length'
+	if(is_obs_in_aisle != temp_is_obs_in_aisle){ 
+		spare_length += linear_vel * 0.1;  
+		if(spare_length > params_.spare_length_){
+			spare_length = 0;
+			temp_is_obs_in_aisle = false;
+		}
+			
+	}
+
 // 3. GMAPPING MODE
 	if (params_.mapping_mode_)
 	{
@@ -385,7 +404,8 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 
 			if(!is_rotating_) 
 			{
-				cout<<"**Arrived to the goal position: "<<dist_err_global<<endl;					
+				cout<<"**Arrived to the goal position: "<<dist_err_global<<endl;
+				arrival_flag.data = true;					
 				goal_yaw = yaw + M_PI; // save current when start rotating
 				if(goal_yaw > M_PI)
 					goal_yaw -= 2*M_PI;
@@ -416,6 +436,8 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 			if(abs(angle_err_global) < params_.global_angle_boundary_ && !adjusting_angle_)
 			{
 				cout<<"finish rotation"<<endl;
+				rotating_flag.data = false; // finished rotation
+				arrival_flag.data = false;
 				goal_index_++;
 				adjusting_angle_ = true; // finished rotation
 			}
@@ -434,7 +456,8 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 					cout<<"adjusting end" <<endl;
 					adjusting_angle_count_=0;
 					adjusting_angle_ = false;
-					is_rotating_ = false;				
+					is_rotating_ = false;	
+					rotating_flag.data = false;			
 				}
 			}
 			pub_cmd_.publish(cmd_vel);
@@ -472,6 +495,8 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 
 		}
 		pub_cmd_.publish(cmd_vel);	
+		pub_arrival_.publish(arrival_flag);
+		pub_rotating_.publish(rotating_flag); 
 	}
 }
 
@@ -487,12 +512,13 @@ void Command::handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& d
 {
 
 	if (dists_msg->data.size())
-{
+	{
 		obs_x_ = dists_msg->data[0];
 		obs_y_ = dists_msg->data[1];
-}
+	}
 	else
-{		obs_x_ = 1000000;
+	{
+		obs_x_ = 1000000;
 		obs_y_ = 1000000;
 	}
 }
@@ -504,6 +530,7 @@ void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 	ROS_INFO("%d th goal is set", goal_count_);
 	goal_set_.push_back(*click_msg);
 }   
+
 
 int main(int argc, char** argv)
 {
@@ -520,8 +547,21 @@ int main(int argc, char** argv)
 		exit(0);
 	}
 #endif
-	if (Command.configure() && LineExtractRP.configure())
-		while(ros::ok()) 
-    	    ros::spinOnce();
+	
+	while(ros::ok()) 
+	{
+		ros::spinOnce();
+		if (LineExtractRP.params_.pseudo_rp_)
+		{
+			pcl::PointXYZ dummy(0,0,0);   
+			sensor_msgs::PointCloud2 points_msg;
+			PointCloud point_set;
+			point_set.push_back(dummy);
+			point_set.push_back(dummy);
+			pcl::toROSMsg(point_set, points_msg);
+			points_msg.header.frame_id = "velodyne";
+			LineExtractRP.pub_points_.publish(points_msg);
+		}
+	}
   	return 0;
 }

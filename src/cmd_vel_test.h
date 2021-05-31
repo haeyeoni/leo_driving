@@ -30,6 +30,7 @@
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
 
+#include <std_msgs/Bool.h>
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/LaserScan.h>
@@ -81,6 +82,11 @@ class LineExtractRP
 {
 public:
     LineExtractRP():pnh_("~") {
+		if (!params_.load(pnh_))
+        {
+            ROS_ERROR("Failed to load parameters (ransac)");
+        }
+
 		sub_scan_ = nh_.subscribe("/up_scan", 10, &LineExtractRP::lineExtract, this);
 		pub_line_ = nh_.advertise<sensor_msgs::PointCloud2>("cluster_line", 10);
 		pub_nearest_ = nh_.advertise<sensor_msgs::PointCloud2> ("nearest_point", 10);
@@ -89,16 +95,7 @@ public:
     };
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in); 
-	
-	bool configure()
-	{
-        if (!params_.load(pnh_))
-        {
-            ROS_ERROR("Failed to load parameters (ransac)");
-            return false;
-        }
-		return true;
-	}
+
     ~LineExtractRP(){}
 
     private:
@@ -107,11 +104,14 @@ public:
 		ros::Subscriber sub_scan_;
         ros::Publisher pub_nearest_;
         ros::Publisher pub_ref_;
-        ros::Publisher pub_points_;
-		ros::Publisher pub_line_;
+        ros::Publisher pub_line_;
         laser_geometry::LaserProjection projector_;
 		boost::recursive_mutex scope_mutex_;
+		
+	public:
 		RansacParameters params_;
+		ros::Publisher pub_points_;
+		
 };
 
 
@@ -120,6 +120,11 @@ class Command
 public:
 	Command():pnh_("~"), tfl_(tfbuf_) 
 	{
+		if (!params_.load(pnh_))
+        {
+            ROS_ERROR("Failed to load parameters (cmd)");
+        }
+
 		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
 		sub_obs_dists_ = nh_.subscribe("/obs_dists", 10, &Command::handleObstacleDists, this);
 		
@@ -127,17 +132,10 @@ public:
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
-	};
 
-	bool configure()
-	{
-        if (!params_.load(pnh_))
-        {
-            ROS_ERROR("Failed to load parameters (cmd)");
-            return false;
-        }
-		return true;
-	}
+		pub_arrival_ = nh_.advertise<std_msgs::Bool> ("/is_arrived", 10);
+		pub_rotating_ = nh_.advertise<std_msgs::Bool> ("/is_rotating", 10);	
+	};
 
     void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
@@ -158,6 +156,9 @@ private:
 	ros::Subscriber sub_joy_;
 	ros::Subscriber sub_goal_;
 	ros::Publisher pub_cmd_;
+
+	ros::Publisher pub_arrival_;
+	ros::Publisher pub_rotating_;
 
 	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	CmdParameters params_; 
@@ -181,9 +182,13 @@ private:
 	float x_err_global, y_err_global, yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
 	float yaw_err_integral = 0.0, Outz=0.0, Outz_tmp = 0.0, SatErr = 0.0, MAX_omega =60.0;
 	double goal_yaw=0.0;
-	float obs_x_,obs_y_ = 0;
+	float obs_x_,obs_y_ = 10000;
 
 	unsigned int rotating_flag=1,transition_flag=1;
+
+	
+	float spare_length = 0.0;
+	bool temp_is_obs_in_aisle = false;
     
     // TF 
     tf2_ros::Buffer tfbuf_;
