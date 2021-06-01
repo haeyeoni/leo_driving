@@ -347,10 +347,13 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 
 	// After obs disappear, go further 'spare_length'
 	if(is_obs_in_aisle != temp_is_obs_in_aisle){ 
-		spare_length += linear_vel * 0.1;  
+		spare_length += linear_vel * 0.1;
+		y_err_local = 0;  
+		cout<< "straight foward of spare distance" <<endl;
 		if(spare_length > params_.spare_length_){
 			spare_length = 0;
 			temp_is_obs_in_aisle = false;
+			cout<<"spare finish"<<endl;
 		}
 			
 	}
