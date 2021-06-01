@@ -11,7 +11,7 @@ float LINE_END = -1;
 
 bool CHECK_LINE = false;
 // OpemMV //
-void *Openmv_control(void *data)
+/*void *Openmv_control(void *data)
 {
 	std::shared_ptr<Serial> serial(new Serial(0, 115200));
 //	Serial Openmv;
@@ -30,11 +30,11 @@ void *Openmv_control(void *data)
 			i=0;
 		}
 	}	
-}
+}*/
 /// CLASS 1 ///
 void LineExtractRP::lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in) 
 {
-	boost::recursive_mutex::scoped_lock ransac_lock(scope_mutex_);
+	//boost::recursive_mutex::scoped_lock ransac_lock(scope_mutex_);
 		
 	float Width = 0.6; //<- Data to be cropped (aisle width)
 	// Messages to be published
@@ -233,7 +233,7 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 
 void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg) 
 {	
-	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
+//	boost::recursive_mutex::scoped_lock cmd_lock(scope_mutex_);
 
 	std_msgs::Bool arrival_flag, rotating_flag;
 	arrival_flag.data = false;
@@ -357,6 +357,7 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 		}
 			
 	}
+
 
 // 3. GMAPPING MODE
 	if (params_.mapping_mode_)
@@ -540,6 +541,8 @@ int main(int argc, char** argv)
   	ros::init(argc, argv, "leo_driving_node");
 	LineExtractRP LineExtractRP;
 	Command Command;	
+
+/*
 #if OpenMV_on
 	pthread_t p_thread[1];
 	int thr_id,a=1;
@@ -550,21 +553,24 @@ int main(int argc, char** argv)
 		exit(0);
 	}
 #endif
-	
+*/
+
 	while(ros::ok()) 
 	{
-		ros::spinOnce();
 		if (LineExtractRP.params_.pseudo_rp_)
-		{
+		{		
 			pcl::PointXYZ dummy(0,0,0);   
 			sensor_msgs::PointCloud2 points_msg;
 			PointCloud point_set;
 			point_set.push_back(dummy);
 			point_set.push_back(dummy);
 			pcl::toROSMsg(point_set, points_msg);
-			points_msg.header.frame_id = "velodyne";
+			points_msg.header.frame_id = "velodyne";	
 			LineExtractRP.pub_points_.publish(points_msg);
+			ros::Duration(0.1).sleep();
 		}
+		ros::spinOnce();
 	}
+	ros::shutdown();
   	return 0;
 }

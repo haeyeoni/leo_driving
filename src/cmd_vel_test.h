@@ -96,7 +96,8 @@ public:
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in); 
 
-    ~LineExtractRP(){}
+    ~LineExtractRP(){
+	ros::shutdown();}
 
     private:
         ros::NodeHandle nh_;
@@ -145,7 +146,8 @@ public:
 	bool checkArrival();
 	void handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
 	void handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& dists_msg);
-	~Command(){}
+	~Command(){
+	ros::shutdown();}
 
 private:
 	ros::NodeHandle nh_;
