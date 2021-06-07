@@ -80,12 +80,16 @@ void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstP
 	// 3.2.1 Not Arrived to the goal position
 	if (dist_err_global > params_.global_dist_boundary_ || !is_rotating_) 
 	{
+		// TODO : ADD CONDITION
+		/// IF (RP DRIVING)
 		if(params_.Kpx_param_*dist_err_global > linear_vel_)
 			cmd_vel.linear.x = linear_vel_;
 		else
 			cmd_vel.linear.x = params_.Kpx_param_*dist_err_global;
 		cmd_vel.angular.z = -Kpy_ * y_err_local_; 
 		pub_cmd_.publish(cmd_vel);	
+		// ELSE (VIDEO DRIVING)
+		// PUB (self_driving/auto_mode to be True)
 	}
 
 	// 3.2.2 Arrived to the goal position
