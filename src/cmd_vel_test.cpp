@@ -29,21 +29,13 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 	}
 }
 
-void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg) 
+void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg) 
 {	
-	std_msgs::Bool arrival_flag, rotating_flag;
-	arrival_flag.data = false;
-	rotating_flag.data = false;
-
 	if(joy_driving_) // joystick mode
 		return;
 
 	//else: autonomous driving
 	geometry_msgs::Twist cmd_vel;
-	float Kpy = params_.Kpy_param_; // rotation 
-	float Kpy_int = params_.Kpy_int_param_;
-	float linear_vel = params_.linear_vel_;
-	
 	PointCloud2Ptr tmp_cloud(new PointCloud2);
 	pcl_conversions::toPCL(cloud_msg, *tmp_cloud);
 	PointCloudPtr data_cloud(new PointCloud); 
@@ -53,13 +45,16 @@ void Command::publishCmd(const sensor_msgs::PointCloud2 &cloud_msg)
 	pcl::PointXYZ nearest_point = data_cloud->points[0];
 	pcl::PointXYZ reference_point = data_cloud->points[1];
 
-	float x_err_local = reference_point.x - nearest_point.x; 
-	float y_err_local = reference_point.y - nearest_point.y;
+	y_err_local_ = reference_point.y - nearest_point.y;
 	
 }
 
-void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
+void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
 {
+	std_msgs::Bool arrival_flag, rotating_flag;
+	arrival_flag.data = false;
+	rotating_flag.data = false;
+
 	if (goal_count_ < 2)
 	{
 		ROS_INFO_ONCE("Waiting for inserting goal... ");
@@ -70,33 +65,32 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 	
 
 	// 3.2 Calculate Global Error
-	x_err_global = current_goal_.pose.position.x - pose_msg->pose.pose.position.x;
-	y_err_global = current_goal_.pose.position.y - pose_msg->pose.pose.position.y;
+	float x_err_global = current_goal_.pose.position.x - pose_msg->pose.pose.position.x;
+	float y_err_global = current_goal_.pose.position.y - pose_msg->pose.pose.position.y;
 	double dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);	
 
 	cout << "goal (x,y): " <<"(" <<current_goal_.pose.position.x << ", " <<current_goal_.pose.position.y << ")" <<endl;		
-	cout << "curr (x,y): " <<"(" <<apose_msg->pose.pose.position.x << ", " << pose_msg->pose.pose.position.y << ")" <<endl;
+	cout << "curr (x,y): " <<"(" <<pose_msg->pose.pose.position.x << ", " << pose_msg->pose.pose.position.y << ")" <<endl;
 	cout << "distance :" << dist_err_global <<endl;
 	cout <<" " <<endl;
 	
 
-	double goal_roll, goal_pitch;	
+	double goal_yaw;	
+	geometry_msgs::Twist cmd_vel;
 	// 3.2.1 Not Arrived to the goal position
 	if (dist_err_global > params_.global_dist_boundary_ || !is_rotating_) 
 	{
-		if(params_.Kpx_param_*dist_err_global > linear_vel)
-			cmd_vel.linear.x = linear_vel;
+		if(params_.Kpx_param_*dist_err_global > linear_vel_)
+			cmd_vel.linear.x = linear_vel_;
 		else
 			cmd_vel.linear.x = params_.Kpx_param_*dist_err_global;
-		cmd_vel.angular.z = -Kpy * y_err_local_; 
-
+		cmd_vel.angular.z = -Kpy_ * y_err_local_; 
 		pub_cmd_.publish(cmd_vel);	
 	}
 
 	// 3.2.2 Arrived to the goal position
 	else
 	{
-		yaw_err_integral = 0.0;
 		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
 		tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
 		tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
@@ -107,7 +101,7 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 		if(!is_rotating_) 
 		{
 			cout<<"**Arrived to the goal position: "<<dist_err_global<<endl;
-			arrival_flag.data = true;					
+			// arrival_flag.data = true;					
 			goal_yaw = yaw + M_PI; // save current when start rotating
 			if(goal_yaw > M_PI)
 				goal_yaw -= 2*M_PI;
@@ -134,8 +128,8 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 		if(abs(angle_err_global) < params_.global_angle_boundary_ && !adjusting_angle_)
 		{
 			cout<<"finish rotation"<<endl;
-			rotating_flag.data = false; // finished rotation
-			arrival_flag.data = false;
+			// rotating_flag.data = false; // finished rotation
+			// arrival_flag.data = false;
 			goal_index_++;
 			adjusting_angle_ = true; // finished rotation
 		}
@@ -144,18 +138,18 @@ void Command::handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPt
 		if(adjusting_angle_)
 		{
 			adjusting_angle_count_++;		
-			cout<<"adjusting y err: "<< y_err_local << ", cnt: " << adjusting_angle_count_ <<endl;
+			cout<<"adjusting y err: "<< y_err_local_ << ", cnt: " << adjusting_angle_count_ <<endl;
 			cmd_vel.linear.x = 0.0;
 					
-			cmd_vel.angular.z = -Kpy*y_err_local;
+			cmd_vel.angular.z = -Kpy_ * y_err_local_;
 			
-			if(adjusting_angle_count_>= 70 || y_err_local < params_.adjusting_y_err_bound_)
+			if(adjusting_angle_count_>= 70 || y_err_local_ < params_.adjusting_y_err_bound_)
 			{
 				cout<<"adjusting end" <<endl;
 				adjusting_angle_count_=0;
 				adjusting_angle_ = false;
 				is_rotating_ = false;	
-				rotating_flag.data = false;			
+				// rotating_flag.data = false;			
 			}
 		}
 		pub_cmd_.publish(cmd_vel);

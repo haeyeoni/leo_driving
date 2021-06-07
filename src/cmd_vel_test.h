@@ -306,8 +306,8 @@ public:
 		linear_vel_ = params_.linear_vel_;
 		
 		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
-		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
-		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
+		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::updateLocalError,  this);
+		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::amclDriving, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 
@@ -315,8 +315,8 @@ public:
 
     void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
-	void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
-	void handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
+	void updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg);	
+	void amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
 	
 	~Command()
 	{
@@ -335,6 +335,7 @@ private:
 	CmdParameters params_; 
 
 	float Kpy_, linear_vel_;
+	float y_err_local_;
 
 	bool joy_driving_ = false; // even: auto, odd: joy control
 	bool fully_autonomous_ = false;
