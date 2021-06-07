@@ -94,10 +94,189 @@ public:
 		pub_points_ = nh_.advertise<sensor_msgs::PointCloud2> ("points_msg", 10);
     };
 
-    void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in); 
+    void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
+	{
+		float Width = 0.6; //<- Data to be cropped (aisle width)
+		// Messages to be published
+		sensor_msgs::PointCloud2 nearest_point;
+		sensor_msgs::PointCloud2 reference_point;      
+		sensor_msgs::PointCloud2 points_msg;
+		sensor_msgs::PointCloud2 points_line;
+			
+		// Message data before converted to the ROS messages
+		PointCloud closest;
+		PointCloud filtered_cloud;
+		PointCloud point_set;
+		PointCloud cluseter_line;
 
-    ~LineExtractRP(){
-	ros::shutdown();}
+		sensor_msgs::PointCloud2 cloud_temp; // <- temporary point cloud to temporaly save the input point cloud     
+		PointCloudPtr cloud(new PointCloud); // <- data cloud
+		PointCloud2Ptr cloud2(new PointCloud2); // <- data cloud2 (converted from the cloud)
+		PointCloudPtr cloud_inrange(new PointCloud); // <- cropped cloud
+		
+		// DATA TYPE CONVERSIONS: LaserScan (scan_in) -> PointCloud2 (cloud2)
+		projector_.projectLaser(*scan_in, cloud_temp);
+		pcl_conversions::toPCL(cloud_temp, *cloud2); 
+		pcl::fromPCLPointCloud2(*cloud2, *cloud); 
+		// CROP POINTCLOUD (cloud -> cloud_inrange) 
+		pcl::ConditionAnd<pcl::PointXYZ>::Ptr range_condition(new pcl::ConditionAnd<pcl::PointXYZ> ());
+			// set condition
+		range_condition->addComparison (pcl::FieldComparison<pcl::PointXYZ>::ConstPtr (new pcl::FieldComparison<pcl::PointXYZ>("y", pcl::ComparisonOps::GT, -Width)));
+		range_condition->addComparison (pcl::FieldComparison<pcl::PointXYZ>::ConstPtr (new pcl::FieldComparison<pcl::PointXYZ>("y", pcl::ComparisonOps::LT, Width)));
+		range_condition->addComparison (pcl::FieldComparison<pcl::PointXYZ>::ConstPtr (new pcl::FieldComparison<pcl::PointXYZ>("x", pcl::ComparisonOps::LT, 0.0)));
+			// conditional removal
+		pcl::ConditionalRemoval<pcl::PointXYZ> condrem;
+		condrem.setInputCloud(cloud);
+		condrem.setCondition(range_condition);
+		condrem.setKeepOrganized(true);
+		condrem.filter(*cloud_inrange);
+
+		if (cloud_inrange->size() == 0)
+		{
+			ROS_WARN("all points are cropped");
+			return;
+		}
+		// EXTRACT LINE (RANSAC ALGORITHM): cloud_inragne changed 
+		pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+		pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+		pcl::SACSegmentation<pcl::PointXYZ> seg;
+		pcl::ExtractIndices<pcl::PointXYZ> extract;
+		seg.setOptimizeCoefficients(true);
+		seg.setModelType(pcl::SACMODEL_LINE); // <- extract model setting
+		seg.setMethodType(pcl::SAC_RANSAC);
+		seg.setDistanceThreshold(params_.line_thresh_); // <- threshold (line width) // 0.5
+		seg.setInputCloud(cloud_inrange); 
+		seg.segment(*inliers, *coefficients);
+		extract.setInputCloud(cloud_inrange);
+		extract.setIndices(inliers);
+		extract.setNegative(false); //<- if true, it returns point cloud except the line.
+
+		extract.filter(*cloud_inrange);
+		if (cloud_inrange->size() == 0)
+		{
+			ROS_WARN("all points are cropped");
+			return;
+		}
+		// CENTER LINE CLUSTER IS EXTRACTED AMONG MULTIPLE LINE CLUSTERS 
+			// clustering...
+
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree_cluster(new pcl::search::KdTree<pcl::PointXYZ>);
+		tree_cluster->setInputCloud(cloud_inrange);
+		std::vector<pcl::PointIndices> cluster_indices;
+		pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+		ec.setInputCloud(cloud_inrange);
+		ec.setClusterTolerance(0.05); // <- If the two points have distance bigger than this tolerance, then points go to different clusters. 
+		ec.setMinClusterSize(30); 
+		ec.setMaxClusterSize(800);;
+		ec.setSearchMethod(tree_cluster);
+		ec.extract(cluster_indices);		
+
+		// extract first clustering (center cluster)
+		int j = 0;
+		std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin ();
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
+		for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
+		{
+			if (j == 0) {
+				for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); ++pit)
+				{		
+					cloud_cluster->points.push_back (cloud_inrange->points[*pit]);
+				}
+				cloud_cluster->width = cloud_cluster->points.size ();
+				cloud_cluster->height = 1;
+				cloud_cluster->is_dense = true;
+			}
+			j++;
+		}
+		// FIND NEAREST POINT FROM THE ORIGIN ( => /nearest_point)
+		if((*cloud_cluster).size() == 0)
+		{
+			ROS_WARN("Not enough points!");
+			return;
+		} 
+
+		pcl::PointXYZ origin(0, 0, 0);	
+		pcl::KdTree<pcl::PointXYZ>::Ptr tree_(new pcl::KdTreeFLANN<pcl::PointXYZ>);
+		tree_->setInputCloud(cloud_cluster);
+		std::vector<int> nn_indices(1); 
+		std::vector<float> nn_dists(1);
+		tree_->nearestKSearch(origin, 1, nn_indices, nn_dists); //<- finds the most closest sing point: save points index to "nn_indices", and distance to "nn_dists"
+		
+		closest.push_back(cloud_cluster->points[nn_indices[0]]); 
+		point_set.push_back(closest[0]);
+
+		// CALCULATE THE AVERAGE COORDINATES FROM THE CENTER LINE( => /reference_point)
+		float current_x = cloud_cluster->points[nn_indices[0]].x;
+		float current_y = cloud_cluster->points[nn_indices[0]].y;
+		float threshold = 0.5;
+		float threshold_y = 0.5;
+		float sum_x = 0;
+		float sum_y = 0;
+		int num_points = 0;
+
+		// Update Line min & Line max
+		float LINE_START = 0;
+		float LINE_END = 1000;
+
+		for (int i = 0; i < (*cloud_cluster).size(); i++) 
+		{
+			filtered_cloud.push_back(cloud_cluster->points[i]);
+			sum_x += cloud_cluster->points[i].x;
+			sum_y += cloud_cluster->points[i].y;
+			num_points ++;
+			if (LINE_END > cloud_cluster->points[i].y) 
+				LINE_END = cloud_cluster->points[i].y;
+			if (LINE_START < cloud_cluster->points[i].y)
+				LINE_START = cloud_cluster->points[i].y;
+		}
+		
+		PointCloud reference_cloud;
+		//pcl::PointXYZ reference (sum_x / (float)num_points, sum_y / (float)num_points, 0);
+		pcl::PointXYZ reference (sum_x / (float)num_points, (LINE_START + LINE_END)/2, 0);//Jinsuk		
+				
+		reference_cloud.push_back(reference);
+		point_set.push_back(reference);
+
+		// FIND LINE END AND LINE START
+		if((*cloud_cluster).size() == 0)
+		{
+			ROS_WARN("Not enough points!");
+			return;
+		} 
+		pcl::PointXYZ left_infinite(0, -10000, 0);	
+		pcl::KdTree<pcl::PointXYZ>::Ptr tree_2(new pcl::KdTreeFLANN<pcl::PointXYZ>);
+		tree_2->setInputCloud(cloud_cluster);
+		std::vector<int> line_indices((*cloud_cluster).size()); 
+		std::vector<float> line_dists((*cloud_cluster).size());
+		tree_2->nearestKSearch(left_infinite, (*cloud_cluster).size(), line_indices, line_dists); //<- finds the most closest sing point: save points index to "nn_indices", and distance to "nn_dists"
+		
+		pcl::PointXYZ line_start(0, LINE_START, 0);
+		pcl::PointXYZ line_end(0, LINE_END, 0);
+		
+		point_set.push_back(line_start);
+		point_set.push_back(line_end);
+		
+		// PUBLISH ROS MESSAGES
+		pcl::toROSMsg(closest, nearest_point);
+		pcl::toROSMsg((*cloud_cluster), points_line);
+		pcl::toROSMsg(reference_cloud, reference_point);
+		pcl::toROSMsg(point_set, points_msg);
+			
+		reference_point.header.frame_id = scan_in->header.frame_id;
+		nearest_point.header.frame_id = scan_in->header.frame_id;
+		points_line.header.frame_id = scan_in->header.frame_id;
+		points_msg.header.frame_id = scan_in->header.frame_id;
+			
+		this->pub_nearest_.publish(nearest_point);// current position		
+		this->pub_ref_.publish(reference_point);
+		this->pub_points_.publish(points_msg);
+		this->pub_line_.publish(points_line);	
+	}
+
+    ~LineExtractRP()
+	{
+		ros::shutdown();
+	}
 
     private:
         ros::NodeHandle nh_;
@@ -107,9 +286,6 @@ public:
         ros::Publisher pub_ref_;
         ros::Publisher pub_line_;
         laser_geometry::LaserProjection projector_;
-		boost::recursive_mutex scope_mutex_;
-		
-	public:
 		RansacParameters params_;
 		ros::Publisher pub_points_;
 		
@@ -125,72 +301,48 @@ public:
         {
             ROS_ERROR("Failed to load parameters (cmd)");
         }
-
-		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
-		sub_obs_dists_ = nh_.subscribe("/obs_dists", 10, &Command::handleObstacleDists, this);
+	
+		Kpy_ = params_.Kpy_param_; // rotation 
+		linear_vel_ = params_.linear_vel_;
 		
+		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::publishCmd,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::handlePose, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 
-		pub_arrival_ = nh_.advertise<std_msgs::Bool> ("/is_arrived", 10);
-		pub_rotating_ = nh_.advertise<std_msgs::Bool> ("/is_rotating", 10);	
 	};
 
-    void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
-	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
-	
-	void rotateReverse(double pinpoint_x, double pinpoint_y, double pinpoint_z, double pinpoint_theta);
+    void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
-	bool checkArrival();
+	void publishCmd(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void handlePose(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
-	void handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& dists_msg);
-	~Command(){
-	ros::shutdown();}
+	
+	~Command()
+	{
+		ros::shutdown();
+	}
 
 private:
 	ros::NodeHandle nh_;
 	ros::NodeHandle pnh_;
 	ros::Subscriber sub_points_;
-	ros::Subscriber sub_obs_dists_;
 	ros::Subscriber sub_amcl_;
 	ros::Subscriber sub_joy_;
 	ros::Subscriber sub_goal_;
 	ros::Publisher pub_cmd_;
 
-	ros::Publisher pub_arrival_;
-	ros::Publisher pub_rotating_;
-
-	geometry_msgs::PoseWithCovarianceStamped amcl_pose_;
 	CmdParameters params_; 
 
-	boost::recursive_mutex scope_mutex_;
+	float Kpy_, linear_vel_;
+
 	bool joy_driving_ = false; // even: auto, odd: joy control
 	bool fully_autonomous_ = false;
 	
-	int return_mode_ = 0; // 
-	
 	unsigned int adjusting_angle_count_ = 0;
-	
-	bool read_pose_ = false;
-	
-	float shift_position_ = 0;
-	bool front_obstacle_ = false;	
 
 	bool is_rotating_ = false;
 	bool adjusting_angle_ = false;
-	
-	float x_err_global, y_err_global, yaw_err_gloabl, dist_err_global = 0.0; // global x, y, dist err JINSuk
-	float yaw_err_integral = 0.0, Outz=0.0, Outz_tmp = 0.0, SatErr = 0.0, MAX_omega =60.0;
-	double goal_yaw=0.0;
-	float obs_x_,obs_y_ = 10000;
-
-	unsigned int rotating_flag=1,transition_flag=1;
-
-	
-	float spare_length = 0.0;
-	bool temp_is_obs_in_aisle = false;
     
     // TF 
     tf2_ros::Buffer tfbuf_;
@@ -202,8 +354,6 @@ private:
 	int goal_count_ = 0;
 	std::vector<geometry_msgs::PoseStamped> goal_set_;
 	geometry_msgs::PoseStamped current_goal_;
-	bool has_goal_ = false;
-	
 };
 
 #endif 

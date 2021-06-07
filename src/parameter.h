@@ -26,15 +26,11 @@ public:
     bool load(ros::NodeHandle& pnh)
     {
         pnh.param("line_thresh", line_thresh_, 0.5);
-        pnh.param("pseudo_rp", pseudo_rp_, true);
-        
         ROS_INFO("parameter loading (ransac)");
 	    return true;
     }    
 public:
-    double line_thresh_;
-    bool pseudo_rp_;
-	
+    double line_thresh_;	
 };
 
 class CmdParameters
@@ -59,9 +55,8 @@ public:
         pnh.param("num_goals", num_goals_, 2);
         pnh.param("line_width_min", line_width_min_, 0.7);
         pnh.param("line_width_max", line_width_max_, 1.0);
-	pnh.param("obs_coefficient", obs_coefficient_, 0.5);
-	pnh.param("spare_length", spare_length_, 1.5);
-
+	    pnh.param("obs_coefficient", obs_coefficient_, 0.5);
+	    pnh.param("spare_length", spare_length_, 1.5);
         return true;
     }
 
