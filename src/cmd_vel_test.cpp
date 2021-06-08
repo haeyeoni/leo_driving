@@ -21,11 +21,7 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 
 void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg) 
 {	
-	if(joy_driving_) // joystick mode
-		return;
-
 	//Calculates local y error and update global variable (y_err_local_)
-	geometry_msgs::Twist cmd_vel;
 	PointCloud2Ptr tmp_cloud(new PointCloud2);
 	pcl_conversions::toPCL(cloud_msg, *tmp_cloud);
 	PointCloudPtr data_cloud(new PointCloud); 
@@ -40,14 +36,16 @@ void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg)
 
 void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
 {
-	std_msgs::Bool auto_flag;
-	auto_flag.data = !is_rotating_;
+	if(joy_driving_) // joystick mode
+		return;
 
 	if (goal_count_ < 2)
 	{
 		ROS_INFO_ONCE("Waiting for inserting goal... ");
 		return;
 	}
+	std_msgs::Bool auto_flag;
+	auto_flag.data = !is_rotating_;
 	current_goal_ = goal_set_[goal_index_ % goal_count_];	
 	cout<<"goal is set: "<<current_goal_.pose.position.x<<" "<<current_goal_.pose.position.y<<endl;	
 	

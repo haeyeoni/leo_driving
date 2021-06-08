@@ -91,6 +91,7 @@ public:
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	{
+		ROS_INFO("flag1");
 		float Width = 0.6; //<- Data to be cropped (aisle width)
 		// Messages to be published
 		sensor_msgs::PointCloud2 nearest_point;
@@ -126,6 +127,7 @@ public:
 		condrem.setKeepOrganized(true);
 		condrem.filter(*cloud_inrange);
 
+		ROS_INFO("flag2");
 		if (cloud_inrange->size() == 0)
 		{
 			ROS_WARN("all points are cropped");
@@ -166,6 +168,7 @@ public:
 		ec.setSearchMethod(tree_cluster);
 		ec.extract(cluster_indices);		
 
+		ROS_INFO("flag3");
 		// extract first clustering (center cluster)
 		int j = 0;
 		std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin ();
@@ -209,6 +212,7 @@ public:
 		float sum_y = 0;
 		int num_points = 0;
 
+		ROS_INFO("flag4");
 		// Update Line min & Line max
 		float LINE_START = 0;
 		float LINE_END = 1000;
@@ -262,6 +266,7 @@ public:
 		points_line.header.frame_id = scan_in->header.frame_id;
 		points_msg.header.frame_id = scan_in->header.frame_id;
 			
+		ROS_INFO("flag5");
 		this->pub_nearest_.publish(nearest_point);// current position		
 		this->pub_ref_.publish(reference_point);
 		this->pub_points_.publish(points_msg);
@@ -285,7 +290,6 @@ public:
 		ros::Publisher pub_points_;
 		
 };
-
 
 class Command
 {
@@ -336,7 +340,7 @@ private:
 	CmdParameters params_; 
 
 	float Kpy_, linear_vel_;
-	float y_err_local_;
+	float y_err_local_ = 0;
 
 	bool joy_driving_ = false; // even: auto, odd: joy control
 	
