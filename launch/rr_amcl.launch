@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Global-->
+  <include file="$(find navigation)/launch/amcl.launch">
+    <!--arg name="map_file" value="$(arg map_file)"/-->
+  </include>
+
+  <!-- <include file="$(find navigation)/launch/odometry.launch"/> -->
+
+  <node pkg="navigation" type="cmd_vel_test_node" name="cmd_vel_test_node" output="screen">
+  </node>
+  
+  <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 3.141592 0 0 map odom 10" />
+  <node pkg="tf" type="static_transform_publisher" name="base_link_to_odom" args="0 0 0 0 0 0 odom base_link 10" />
+  <node pkg="tf" type="static_transform_publisher" name="top_plate_link_to_camera_link" args="0 0 0 0.0 0 0 top_plate_link camera_link 10" />
+</launch>
+

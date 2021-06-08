@@ -1,0 +1,40 @@
+<launch>
+
+  <arg name="output" default="screen"/>
+  <arg name="three_d" default="false"/>
+  <arg name="statc_tf" default="true"/>
+
+  <node if="$(arg statc_tf)" pkg="tf" type="static_transform_publisher" name="base_to_imu" args="0 0 0.0 0 0 0 base_link imu 10" />
+  <node if="$(arg statc_tf)" pkg="tf" type="static_transform_publisher" name="odom_to_map" args="0 0 0.0 0 0 0 map odom 10" />
+  <node if="$(arg statc_tf)" pkg="tf" type="static_transform_publisher" name="base_to_velo" args="0 0 0.0 0 0 0 base_link velodyne 10" />
+
+  <node name="message_filter" 
+        pkg="navigation" 
+        type="message_filter">
+    <rosparam command="load" 
+              file="$(find navigation)/config/message_filter.yaml"/>
+  </node>
+
+  <node if="$(arg three_d)"
+        name="imu_filter_node" 
+        pkg="imu_filter_madgwick" 
+        type="imu_filter_node"
+        output="$(arg output)">
+    <rosparam command="load"
+              file="$(find navigation)/config/imu_filter_node.yaml"/>
+  </node>
+
+  <node name="ekf_localization_node"
+        pkg="robot_localization"
+        type="ekf_localization_node"
+        clear_params="true"
+        output="$(arg output)">
+    <rosparam unless="$(arg three_d)"
+              command="load"
+              file="$(find navigation)/config/ekf_localization_node/ekf_2d.yaml"/>
+    <rosparam if="$(arg three_d)"
+              command="load"
+              file="$(find navigation)/config/ekf_localization_node/ekf_3d.yaml"/>
+  </node>
+
+</launch>
