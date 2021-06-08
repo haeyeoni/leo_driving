@@ -1,7 +1,6 @@
 // Copyright 2020, Postech, Cocel, Control Team
 
 #include "cmd_vel_test.h"
-#include "serial.hpp"
 
 void Command::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 {	
@@ -18,15 +17,6 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 		joy_driving_ = !joy_driving_;
 		ros::Duration(1).sleep();
 	}
-	
-	if(joy_driving_)
-	{ 
-		geometry_msgs::Twist cmd_vel;
-		cmd_vel.linear.x = joy_msg -> axes[1] * 0.5;
-		cmd_vel.angular.z = joy_msg -> axes[0] * 0.5;
-		pub_cmd_.publish(cmd_vel);
-		return;
-	}
 }
 
 void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg) 
@@ -34,14 +24,13 @@ void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg)
 	if(joy_driving_) // joystick mode
 		return;
 
-	//else: autonomous driving
+	//Calculates local y error and update global variable (y_err_local_)
 	geometry_msgs::Twist cmd_vel;
 	PointCloud2Ptr tmp_cloud(new PointCloud2);
 	pcl_conversions::toPCL(cloud_msg, *tmp_cloud);
 	PointCloudPtr data_cloud(new PointCloud); 
 	pcl::fromPCLPointCloud2(*tmp_cloud, *data_cloud); 
 
-// 2. CALCULATE AISLE LINE LENGTH AND CENTER
 	pcl::PointXYZ nearest_point = data_cloud->points[0];
 	pcl::PointXYZ reference_point = data_cloud->points[1];
 
@@ -51,9 +40,8 @@ void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg)
 
 void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
 {
-	std_msgs::Bool arrival_flag, rotating_flag;
-	arrival_flag.data = false;
-	rotating_flag.data = false;
+	std_msgs::Bool auto_flag;
+	auto_flag.data = !is_rotating_;
 
 	if (goal_count_ < 2)
 	{
@@ -78,7 +66,7 @@ void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstP
 	double goal_yaw;	
 	geometry_msgs::Twist cmd_vel;
 	// 3.2.1 Not Arrived to the goal position
-	if (dist_err_global > params_.global_dist_boundary_ || !is_rotating_) 
+	if (dist_err_global > params_.global_dist_boundary_ && !is_rotating_) 
 	{
 		// TODO : ADD CONDITION
 		/// IF (RP DRIVING)
@@ -105,13 +93,21 @@ void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstP
 		if(!is_rotating_) 
 		{
 			cout<<"**Arrived to the goal position: "<<dist_err_global<<endl;
-			// arrival_flag.data = true;					
 			goal_yaw = yaw + M_PI; // save current when start rotating
 			if(goal_yaw > M_PI)
 				goal_yaw -= 2*M_PI;
 			else if(goal_yaw < -M_PI)
 				goal_yaw += 2*M_PI;
+
 			is_rotating_ = true;
+			auto_flag.data = false;
+
+			// To contorl with Joy
+			cmd_vel.linear.x = 0.0;
+			cmd_vel.linear.z = 0.0;
+			pub_auto_mode_.publish(auto_flag); 
+			pub_cmd_.publish(cmd_vel);
+			ros::Duration(1).sleep();
 		}
 
 		// 3.2.2.1 Check whether robot should rotate
@@ -122,41 +118,24 @@ void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstP
 			angle_err_global -= 2*M_PI;
 		else if(angle_err_global < -M_PI)
 			angle_err_global += 2*M_PI;
-
-		cmd_vel.linear.x = 0.0;
+		
 		//cmd_vel.angular.z = -params_.Kpy_param_rot_*angle_err_global;
 		double bounded_ang_err = min(abs(angle_err_global), 1.0);
 		cmd_vel.angular.z = -params_.Kpy_param_rot_ * bounded_ang_err;
 		cout<<"rotating ... bounded_angle_err: "<<cmd_vel.angular.z <<"angle: "<<angle_err_global<<endl;						
 		
-		if(abs(angle_err_global) < params_.global_angle_boundary_ && !adjusting_angle_)
+		if(abs(angle_err_global) < params_.global_angle_boundary_ || joy_driving_)
 		{
 			cout<<"finish rotation"<<endl;
-			// rotating_flag.data = false; // finished rotation
-			// arrival_flag.data = false;
 			goal_index_++;
-			adjusting_angle_ = true; // finished rotation
+
+			//To delete adjusing_angle
+			is_rotating_ = false;
+			auto_flag.data = true;
+			joy_driving_ = false;
 		}
-		
-		// 3.2.2.2 If finish rotation,	 
-		if(adjusting_angle_)
-		{
-			adjusting_angle_count_++;		
-			cout<<"adjusting y err: "<< y_err_local_ << ", cnt: " << adjusting_angle_count_ <<endl;
-			cmd_vel.linear.x = 0.0;
-					
-			cmd_vel.angular.z = -Kpy_ * y_err_local_;
-			
-			if(adjusting_angle_count_>= 70 || y_err_local_ < params_.adjusting_y_err_bound_)
-			{
-				cout<<"adjusting end" <<endl;
-				adjusting_angle_count_=0;
-				adjusting_angle_ = false;
-				is_rotating_ = false;	
-				// rotating_flag.data = false;			
-			}
-		}
-		pub_cmd_.publish(cmd_vel);
+		//pub_cmd_.publish(cmd_vel);
+		pub_auto_mode_.publish(auto_flag); 
 	}
 }   
 

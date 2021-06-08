@@ -7,7 +7,6 @@
 
 #include <iostream>
 #include <string>
-#include <boost/filesystem.hpp>
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,13 +21,9 @@
 #include <memory>
 #include <thread>
 #include <chrono>
-#include <mutex>
 #include <cmath>
 
 #include <ros/ros.h>
-#include <ros/serialization.h>
-#include <ros/publisher.h>
-#include <ros/subscriber.h>
 
 #include <std_msgs/Bool.h>
 #include <sensor_msgs/PointCloud.h>
@@ -305,12 +300,15 @@ public:
 		Kpy_ = params_.Kpy_param_; // rotation 
 		linear_vel_ = params_.linear_vel_;
 		
-		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joy", 10, &Command::handleJoyMode, this);
+		sub_joy_ = nh_.subscribe<sensor_msgs::Joy>("/joystick", 10, &Command::handleJoyMode, this);
 		sub_points_ = nh_.subscribe("/points_msg", 10, &Command::updateLocalError,  this);
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::amclDriving, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 
+		pub_arrival_ = nh_.advertise<std_msgs::Bool> ("navigation/arrival", 10);
+		pub_auto_mode_ = nh_.advertise<std_msgs::Bool> ("self_driving/auto_mode", 10);	
+	
 	};
 
     void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg);
@@ -332,19 +330,18 @@ private:
 	ros::Subscriber sub_goal_;
 	ros::Publisher pub_cmd_;
 
+	ros::Publisher pub_arrival_;
+	ros::Publisher pub_auto_mode_;
+
 	CmdParameters params_; 
 
 	float Kpy_, linear_vel_;
 	float y_err_local_;
 
 	bool joy_driving_ = false; // even: auto, odd: joy control
-	bool fully_autonomous_ = false;
 	
-	unsigned int adjusting_angle_count_ = 0;
-
 	bool is_rotating_ = false;
-	bool adjusting_angle_ = false;
-    
+	
     // TF 
     tf2_ros::Buffer tfbuf_;
     tf2_ros::TransformListener tfl_;
