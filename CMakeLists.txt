@@ -9,23 +9,25 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   pcl_conversions
-  pcl_ros)
+  pcl_ros
+  nodelet
+  )
 
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 
+catkin_package(
+  CATKIN_DEPENDS geometry_msgs roscpp std_msgs sensor_msgs tf pcl_conversions nodelet
+  DEPENDS PCL 
+)
+
 include_directories(
   include
 	${catkin_INCLUDE_DIRS} 
-	#${EIGEN3_INCLUDE_DIR}
 	${PCL_INCLUDE_DIRS}
 )
-	
 
-catkin_package(
-  CATKIN_DEPENDS geometry_msgs roscpp std_msgs sensor_msgs tf pcl_conversions
-  DEPENDS EIGEN3 PCL 
-)
+add_library(aisle_detect_node src/aise_detect/aisle_detect_node.cpp)
 
 ## Compile as C++14, supported in ROS Kinetic and newer
 # set_property(TARGET invz_player PROPERTY CXX_STANDARD 17)
