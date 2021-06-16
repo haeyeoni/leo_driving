@@ -1,6 +1,7 @@
 #ifndef AISLE_DETECT_NODE_H
 #define AISLE_DETECT_NODE_H
 
+#include <pluginlib/class_list_macros.h>
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -47,5 +48,7 @@ private:
 	} Config;
 	Config config_;
 };
+
+PLUGINLIB_EXPORT_CLASS(tunnel_driving::AisleDetectNode, nodelet::Nodelet)
 }
 #endif // AISLE_DETECT_NODE_H

@@ -1,4 +1,3 @@
-#include <pluginlib/class_list_macros.hpp>
 #include <tunnel_driving/localization_node.hpp>
 
 using namespace std;
@@ -109,4 +108,3 @@ void LocalizationNode::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click
 	goal_set_.push_back(*click_msg);
 }
 
-PLUGINLIB_EXPORT_CLASS(LocalizationNode, nodelet::Nodelet)

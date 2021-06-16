@@ -1,8 +1,8 @@
 #ifndef LOCALIZATION_NODE_H
 #define LOCALIZATION_NODE_H
 
-#include <ros/ros.h>
- 
+#include <pluginlib/class_list_macros.h>
+#include <ros/ros.h> 
 #include <sensor_msgs/Joy.h>
 #include <std_msgs/Bool.h>
 #include <tf2_ros/transform_listener.h>
@@ -11,6 +11,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nodelet/nodelet.h>
+#include <sstream>
 namespace tunnel_driving{
 	
 class LocalizationNode : public nodelet::Nodelet
@@ -51,5 +52,7 @@ private:
 	} Config;
 	Config config_;
 };
+
+PLUGINLIB_EXPORT_CLASS(tunnel_driving::LocalizationNode, nodelet::Nodelet)
 }
 #endif

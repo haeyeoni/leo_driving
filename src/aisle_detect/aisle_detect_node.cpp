@@ -1,4 +1,3 @@
-#include <pluginlib/class_list_macros.hpp>
 #include <tunnel_driving/aisle_detect_node.hpp>
 
 using namespace tunnel_driving;
@@ -10,7 +9,7 @@ void AisleDetectNode::onInit()
     
     // Configuration //
     private_nh.param("line_thresh", config_.line_thresh_, 0.5);
-    private_nh.param("line_thresh", config_.aisle_width_, 0.6);
+    private_nh.param("aisle_width", config_.aisle_width_, 0.6);
 
     // Subscriber & Publisher
     sub_scan_ = nh.subscribe("/up_scan", 10, &AisleDetectNode::scanCallback, this);
@@ -149,4 +148,3 @@ void AisleDetectNode::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_
     this->pub_line_.publish(points_line);	
 }
 
-PLUGINLIB_EXPORT_CLASS(AisleDetectNode, nodelet::Nodelet)
