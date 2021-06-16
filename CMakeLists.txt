@@ -20,8 +20,8 @@ catkin_package(
         DEPENDS PCL
 )
 
-add_executable(rp_driving_node src/rp_node.cpp )
-target_link_libraries(rp_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+#add_executable(rp_driving_node src/rp_node.cpp )
+#target_link_libraries(rp_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 ###########
 ## Build ##

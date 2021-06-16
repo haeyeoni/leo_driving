@@ -48,11 +48,10 @@ private:
 
 	void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 	{
-        laser_geometry::LaserProjection projector_;
-        tf::TransformListener tfListener_;
+        laser_geometry::LaserProjection projector;
         ROS_INFO("scan callback");
         sensor_msgs::PointCloud2 cloud;
-        projector_.transformLaserScanToPointCloud("base_link", *scan_msg, cloud, tfListener_);
+		projector.projectLaser(*scan_msg, cloud);
 
         std_msgs::Float32 y_err_local;
         y_err_local.data = 0.1;
