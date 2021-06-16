@@ -1,8 +1,7 @@
-#include <tunnel_driving/aisle_detect_node.hpp>
 #include <pluginlib/class_list_macros.hpp>
+#include <tunnel_driving/aisle_detect_node.hpp>
 
-
-PLUGINLIB_EXPORT_CLASS(AisleDetectNode, nodelet::Nodelet)
+using namespace tunnel_driving;
 
 void AisleDetectNode::onInit()
 {
@@ -149,3 +148,5 @@ void AisleDetectNode::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_
     this->pub_points_.publish(points_msg);
     this->pub_line_.publish(points_line);	
 }
+
+PLUGINLIB_EXPORT_CLASS(AisleDetectNode, nodelet::Nodelet)

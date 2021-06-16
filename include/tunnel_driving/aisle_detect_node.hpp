@@ -24,6 +24,8 @@
 
 #include <nodelet/nodelet.h>
 
+namespace tunnel_driving{
+	
 class AisleDetectNode : public nodelet::Nodelet
 {
 public:
@@ -45,4 +47,5 @@ private:
 	} Config;
 	Config config_;
 };
+}
 #endif // AISLE_DETECT_NODE_H

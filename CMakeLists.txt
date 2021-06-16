@@ -14,7 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   roscpp
   std_msgs
-  tf
+  tf2_ros
   pcl_conversions
   pcl_ros
   nodelet
@@ -24,7 +24,7 @@ find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 
 catkin_package(
-  CATKIN_DEPENDS laser_geometry geometry_msgs roscpp std_msgs sensor_msgs tf pcl_conversions nodelet
+  CATKIN_DEPENDS laser_geometry geometry_msgs roscpp std_msgs sensor_msgs tf2_ros pcl_conversions nodelet
   DEPENDS PCL 
 )
 
@@ -36,5 +36,8 @@ include_directories(
 
 add_library(aisle_detect_node
   src/aisle_detect/aisle_detect_node.cpp)
-
 target_link_libraries(aisle_detect_node ${CATKIN_LIBRARIES} ${PCL_LIBRARIES})
+
+add_library(localization_node
+  src/localization/localization_node.cpp)
+target_link_libraries(localization_node ${CATKIN_LIBRARIES} ${PCL_LIBRARIES})

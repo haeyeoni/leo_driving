@@ -1,0 +1,15 @@
+ 
+<launch>
+	<!-- $ rosrun nodelet nodelet manager __name:=sample_nodelet_manager -->
+	<node pkg="nodelet" type="nodelet" args="manager"
+    name="tunnel_driving_nodelet_manager" output="screen" />
+
+  <!-- $ rosrun nodelet nodelet load sample_nodelet/SampleNodeletClass sample_nodelet_manager __name:=SampleNodeletClass_loader-->
+	<!--node pkg="nodelet" type="nodelet" args="load tunnel_driving/AisleDetectNode tunnel_driving_nodelet_manager"
+    name="AisleDetectNode_loader" output="screen">
+	</node-->
+	<node pkg="nodelet" type="nodelet" args="load tunnel_driving/LocalizationNode tunnel_driving_nodelet_manager"
+    name="LocalizationNode_loader" output="screen">
+	</node>
+
+</launch>
