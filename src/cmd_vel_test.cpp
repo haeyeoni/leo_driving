@@ -19,6 +19,21 @@ void Command::handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg){
 	}
 }
 
+void Command::handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& dists_msg)
+{
+
+	if (dists_msg->data.size())
+	{
+		obs_x_ = dists_msg->data[0];
+		obs_y_ = dists_msg->data[1];
+	}
+	else
+	{
+		obs_x_ = 1000000;
+		obs_y_ = 1000000;
+	}
+}
+
 void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg) 
 {	
 	//Calculates local y error and update global variable (y_err_local_)
@@ -29,9 +44,14 @@ void Command::updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg)
 
 	pcl::PointXYZ nearest_point = data_cloud->points[0];
 	pcl::PointXYZ reference_point = data_cloud->points[1];
+	pcl::PointXYZ line_start = data_cloud->points[1];
+	pcl::PointXYZ line_end = data_cloud->points[1];
 
+	ref_y_ = reference_point.y;
+	near_y_ = nearest_point.y;
 	y_err_local_ = reference_point.y - nearest_point.y;
-	
+	start_y_ = line_start.y;
+	end_y_ = line_end.y;
 }
 
 void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
@@ -68,11 +88,50 @@ void Command::amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstP
 	{
 		// TODO : ADD CONDITION
 		/// IF (RP DRIVING)
+		float y_err_local = y_err_local_;
+		if(params_.check_obstacles_)
+		{
+			float line_length = end_y_ - start_y_;
+			float left_boundary = start_y_ - (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
+			float right_boundary = end_y_ + (line_length * params_.boundary_percent_ + 0.5 * params_.robot_width_);
+
+			bool is_obs_in_aisle = obs_y_ > end_y_ && obs_y_ < start_y_;
+			if (is_obs_in_aisle)
+			{
+				temp_is_obs_in_aisle = true;
+				spare_length = 0;
+				// 1. Right Obstacle Update	
+				if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
+				{	
+					cout << "Right obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<endl;
+					float shift = params_.obs_coefficient_*(end_y_-obs_y_);
+					y_err_local = (near_y_ + shift > left_boundary) ? left_boundary - near_y_ : y_err_local_ + shift;
+				}
+				// 2. Left Obstacle Update 
+				else if(obs_y_ > 0 && obs_y_ < 1 && obs_x_ < 0.6)
+				{
+					cout << "Left obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<endl;
+					float shift = params_.obs_coefficient_*(start_y_-obs_y_);
+					y_err_local = (near_y_ + shift < right_boundary) ? right_boundary - near_y_ : y_err_local + shift;
+				}
+			}
+			if(is_obs_in_aisle != temp_is_obs_in_aisle)
+			{ 
+				spare_length += linear_vel_ * 0.1;
+				y_err_local = 0;  
+				cout<< "straight foward of spare distance" <<endl;
+				if(spare_length > params_.spare_length_){
+					spare_length = 0;
+					temp_is_obs_in_aisle = false;
+					cout<<"spare finish"<<endl;
+				}	
+			}
+		}
 		if(params_.Kpx_param_*dist_err_global > linear_vel_)
 			cmd_vel.linear.x = linear_vel_;
 		else
 			cmd_vel.linear.x = params_.Kpx_param_*dist_err_global;
-		cmd_vel.angular.z = -Kpy_ * y_err_local_; 
+		cmd_vel.angular.z = -Kpy_ * y_err_local; 
 		pub_cmd_.publish(cmd_vel);	
 		// ELSE (VIDEO DRIVING)
 		// PUB (self_driving/auto_mode to be True)

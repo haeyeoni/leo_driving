@@ -91,7 +91,6 @@ public:
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	{
-		ROS_INFO("flag1");
 		float Width = 0.6; //<- Data to be cropped (aisle width)
 		// Messages to be published
 		sensor_msgs::PointCloud2 nearest_point;
@@ -127,7 +126,6 @@ public:
 		condrem.setKeepOrganized(true);
 		condrem.filter(*cloud_inrange);
 
-		ROS_INFO("flag2");
 		if (cloud_inrange->size() == 0)
 		{
 			ROS_WARN("all points are cropped");
@@ -168,7 +166,6 @@ public:
 		ec.setSearchMethod(tree_cluster);
 		ec.extract(cluster_indices);		
 
-		ROS_INFO("flag3");
 		// extract first clustering (center cluster)
 		int j = 0;
 		std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin ();
@@ -212,7 +209,6 @@ public:
 		float sum_y = 0;
 		int num_points = 0;
 
-		ROS_INFO("flag4");
 		// Update Line min & Line max
 		float LINE_START = 0;
 		float LINE_END = 1000;
@@ -266,7 +262,6 @@ public:
 		points_line.header.frame_id = scan_in->header.frame_id;
 		points_msg.header.frame_id = scan_in->header.frame_id;
 			
-		ROS_INFO("flag5");
 		this->pub_nearest_.publish(nearest_point);// current position		
 		this->pub_ref_.publish(reference_point);
 		this->pub_points_.publish(points_msg);
@@ -309,7 +304,8 @@ public:
 		sub_amcl_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &Command::amclDriving, this);
 		sub_goal_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &Command::setGoal, this);
 		pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
-
+		sub_obs_dists_ = nh_.subscribe("/obs_dists", 10, &Command::handleObstacleDists, this);
+		
 		pub_arrival_ = nh_.advertise<std_msgs::Bool> ("navigation/arrival", 10);
 		pub_auto_mode_ = nh_.advertise<std_msgs::Bool> ("self_driving/auto_mode", 10);	
 	
@@ -319,6 +315,7 @@ public:
 	void handleJoyMode(const sensor_msgs::Joy::ConstPtr& joy_msg);
 	void updateLocalError(const sensor_msgs::PointCloud2 &cloud_msg);	
 	void amclDriving(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg);
+	void handleObstacleDists(const std_msgs::Float32MultiArray::ConstPtr& dists_msg);
 	
 	~Command()
 	{
@@ -329,6 +326,7 @@ private:
 	ros::NodeHandle nh_;
 	ros::NodeHandle pnh_;
 	ros::Subscriber sub_points_;
+	ros::Subscriber sub_obs_dists_;
 	ros::Subscriber sub_amcl_;
 	ros::Subscriber sub_joy_;
 	ros::Subscriber sub_goal_;
@@ -341,7 +339,8 @@ private:
 
 	float Kpy_, linear_vel_;
 	float y_err_local_ = 0;
-
+	float ref_y_, near_y_, start_y_, end_y_;
+	
 	bool joy_driving_ = false; // even: auto, odd: joy control
 	
 	bool is_rotating_ = false;
@@ -356,6 +355,11 @@ private:
 	int goal_count_ = 0;
 	std::vector<geometry_msgs::PoseStamped> goal_set_;
 	geometry_msgs::PoseStamped current_goal_;
+	
+	//OBSTACLES
+	float obs_x_,obs_y_ = 10000;
+	float spare_length = 0.0;
+	bool temp_is_obs_in_aisle = false;
 };
 
 #endif 

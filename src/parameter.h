@@ -57,6 +57,7 @@ public:
         pnh.param("line_width_max", line_width_max_, 1.0);
 	    pnh.param("obs_coefficient", obs_coefficient_, 0.5);
 	    pnh.param("spare_length", spare_length_, 1.5);
+	    pnh.param("check_obstacles", check_obstacles_, false);
         return true;
     }
 
@@ -78,5 +79,5 @@ public:
     int num_goals_;
 	double obs_coefficient_;
 	double spare_length_;
-	
+	bool check_obstacles_;
 };
