@@ -10,14 +10,11 @@
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <fstream>
-
 #include <stdint.h>
 #include <unistd.h>
 #include <termios.h>
 #include <time.h>
 #include <signal.h>
-#include <string.h>
 #include <memory>
 #include <thread>
 #include <chrono>
@@ -45,10 +42,15 @@
 #include <pcl/ModelCoefficients.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+
+#include <pcl/sample_consensus/sac_model_line.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/sample_consensus/ransac.h>
+
+
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/kdtree/kdtree_flann.h>
@@ -82,22 +84,43 @@ public:
             ROS_ERROR("Failed to load parameters (ransac)");
         }
 
-		sub_scan_ = nh_.subscribe("/up_scan", 10, &LineExtractRP::lineExtract, this);
+		sub_scan_ = nh_.subscribe("/up_scan", 1, &LineExtractRP::lineExtract, this);
 		pub_line_ = nh_.advertise<sensor_msgs::PointCloud2>("cluster_line", 10);
 		pub_nearest_ = nh_.advertise<sensor_msgs::PointCloud2> ("nearest_point", 10);
 	 	pub_ref_ = nh_.advertise<sensor_msgs::PointCloud2> ("reference_point", 10);
 		pub_points_ = nh_.advertise<sensor_msgs::PointCloud2> ("points_msg", 10);
+		pub_inrange_ = nh_.advertise<sensor_msgs::PointCloud2> ("points_inrange", 10);
     };
 
     void lineExtract(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	{
-		ROS_INFO("flag1");
-		float Width = 0.6; //<- Data to be cropped (aisle width)
+		float width = 0.8; //<- Data to be cropped (aisle width)
+		
+		// 1. Convert from LaserScan to PointCloud
+		sensor_msgs::PointCloud2 cloud_temp; // <- temporary point cloud to temporaly save the input point cloud     
+		PointCloudPtr cloud(new PointCloud); // <- data cloud
+		PointCloud2Ptr cloud2(new PointCloud2); // <- data cloud2 (converted from the cloud)
+		projector_.projectLaser(*scan_in, cloud_temp);
+		pcl_conversions::toPCL(cloud_temp, *cloud2); 
+		pcl::fromPCLPointCloud2(*cloud2, *cloud); 
+		
+		// 2. Crop PointCloud 
+		PointCloudPtr cloud_inrange(new PointCloud); // <- cropped cloud
+		for (int i = 0; i < cloud->size(); i++) {
+			if(cloud->points[i].y > -width && cloud->points[i].y < width && cloud->points[i].x < 0) {
+                cloud_inrange->push_back(cloud->points[i]);
+            } 
+        }
+			// publish cropped pointcloud
+		sensor_msgs::PointCloud2 points_inrange;
+		pcl::toROSMsg(*cloud_inrange, points_inrange);			
+		points_inrange.header.frame_id = scan_in->header.frame_id;	
+		this->pub_inrange_.publish(points_inrange);
+
 		// Messages to be published
 		sensor_msgs::PointCloud2 nearest_point;
 		sensor_msgs::PointCloud2 reference_point;      
 		sensor_msgs::PointCloud2 points_msg;
-		sensor_msgs::PointCloud2 points_line;
 			
 		// Message data before converted to the ROS messages
 		PointCloud closest;
@@ -105,16 +128,37 @@ public:
 		PointCloud point_set;
 		PointCloud cluseter_line;
 
-		sensor_msgs::PointCloud2 cloud_temp; // <- temporary point cloud to temporaly save the input point cloud     
-		PointCloudPtr cloud(new PointCloud); // <- data cloud
-		PointCloud2Ptr cloud2(new PointCloud2); // <- data cloud2 (converted from the cloud)
-		PointCloudPtr cloud_inrange(new PointCloud); // <- cropped cloud
 		
-		// DATA TYPE CONVERSIONS: LaserScan (scan_in) -> PointCloud2 (cloud2)
-		projector_.projectLaser(*scan_in, cloud_temp);
-		pcl_conversions::toPCL(cloud_temp, *cloud2); 
-		pcl::fromPCLPointCloud2(*cloud2, *cloud); 
-		// CROP POINTCLOUD (cloud -> cloud_inrange) 
+		// 3. EXTRACT LINE (RANSAC ALGORITHM): cloud_inragne changed 
+		std::vector<int> inliers;
+		pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cloud_inrange));
+		pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p);
+		ransac.setDistanceThreshold (.01);
+		ransac.computeModel();
+		ransac.getInliers(inliers);
+
+		/*pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+		pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+		pcl::SACSegmentation<pcl::PointXYZ> seg;
+		pcl::ExtractIndices<pcl::PointXYZ> extract;
+		seg.setOptimizeCoefficients(true);
+		seg.setModelType(pcl::SACMODEL_LINE); // <- extract model setting
+		seg.setMethodType(pcl::SAC_RANSAC);
+		seg.setDistanceThreshold(params_.line_thresh_); // <- threshold (line width) // 0.5
+		seg.setInputCloud(cloud_inrange); 
+		seg.segment(*inliers, *coefficients);
+
+		extract.setInputCloud(cloud_inrange);
+		extract.setIndices(inliers);
+		extract.setNegative(false); //<- if true, it returns point cloud except the line.
+		extract.filter(*cloud_inrange);
+		
+		sensor_msgs::PointCloud2 points_line;
+		pcl::toROSMsg(*cloud_inrange, points_line);			
+		points_line.header.frame_id = scan_in->header.frame_id;	
+		this->pub_line_.publish(points_line);
+
+		/*
 		pcl::ConditionAnd<pcl::PointXYZ>::Ptr range_condition(new pcl::ConditionAnd<pcl::PointXYZ> ());
 			// set condition
 		range_condition->addComparison (pcl::FieldComparison<pcl::PointXYZ>::ConstPtr (new pcl::FieldComparison<pcl::PointXYZ>("y", pcl::ComparisonOps::GT, -Width)));
@@ -127,6 +171,8 @@ public:
 		condrem.setKeepOrganized(true);
 		condrem.filter(*cloud_inrange);
 
+
+/*
 		ROS_INFO("flag2");
 		if (cloud_inrange->size() == 0)
 		{
@@ -270,7 +316,7 @@ public:
 		this->pub_nearest_.publish(nearest_point);// current position		
 		this->pub_ref_.publish(reference_point);
 		this->pub_points_.publish(points_msg);
-		this->pub_line_.publish(points_line);	
+		this->pub_line_.publish(points_line);	*/
 	}
 
     ~LineExtractRP()
@@ -285,6 +331,7 @@ public:
         ros::Publisher pub_nearest_;
         ros::Publisher pub_ref_;
         ros::Publisher pub_line_;
+        ros::Publisher pub_inrange_;
         laser_geometry::LaserProjection projector_;
 		RansacParameters params_;
 		ros::Publisher pub_points_;
