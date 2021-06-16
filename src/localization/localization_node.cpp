@@ -12,7 +12,7 @@ void LocalizationNode::onInit()
     private_nh.param("global_angle_boundary", config_.global_angle_boundary_, 0.05);
 
     // Subscriber & Publisher
-    sub_pose_ = nh.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &LocalizationNode::poseCallback, this);
+    // sub_pose_ = nh.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &LocalizationNode::poseCallback, this);
     sub_goal_ = nh.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &LocalizationNode::setGoal, this);    
     
     pub_arrival_ = nh.advertise<std_msgs::Bool> ("/arrival", 10);
@@ -55,10 +55,40 @@ void LocalizationNode::poseCallback(const geometry_msgs::PoseWithCovarianceStamp
 	else
 	{
         arrival_flag.data = true;
-        
-		const geometry_msgs::TransformStamped trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
-		tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
-		tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
+		std::string errMsg;
+		tf::StampedTransform transform;
+		tf::TransformListener tf_listener;
+		if (!tf_listener.waitForTransform("/odom",  "/base_link", ros::Time(0), ros::Duration(0.5),
+											ros::Duration(0.01), &errMsg)) {
+			ROS_ERROR_STREAM("Pointcloud transform | Unable to get pose from TF: ");
+		} else {
+			try {
+				tf_listener.lookupTransform("/odom",  "/base_link", ros::Time(0), transform);
+			}
+			catch (const tf::TransformException &e) {
+				ROS_ERROR_STREAM(
+						"Pointcloud transform | Error in lookupTransform of " <<  "/base_link" << " in " << "/odom");
+			}
+		}
+
+		// tf::StampedTransform transform;
+		// try{
+		// 	listener.lookupTransform("/odom", "/base_link",  
+		// 						ros::Time(0), transform);
+		// }
+		// catch (tf::TransformException ex){
+		// 	ROS_ERROR("%s",ex.what());
+		// 	ros::Duration(1.0).sleep();
+		// }
+		
+		// const geometry_msgs::TransformStamped trans;
+		// trans = tfbuf_.lookupTransform("odom", "base_link", ros::Time(0));      
+		// tf2::Vector3 translation (trans.transform.translation.x, trans.transform.translation.y, trans.transform.translation.z);
+		// tf2::Quaternion orientation (trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w);
+		// tf2::Matrix3x3 m(orientation);
+		/*
+		tf2::Vector3 translation (transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+		tf2::Quaternion orientation (transform.getRotation().x(), transform.getRotation().y(), transform.getRotation().z(), transform.getRotation().w());
 		tf2::Matrix3x3 m(orientation);
 		double roll, pitch, yaw;
 		m.getRPY(roll, pitch, yaw);
@@ -98,9 +128,10 @@ void LocalizationNode::poseCallback(const geometry_msgs::PoseWithCovarianceStamp
 	}
     rotating_flag.data = is_rotating_;
     pub_rotating_.publish(rotating_flag);
-    pub_arrival_.publish(arrival_flag);
-
+    pub_arrival_.publish(arrival_flag);*/
+	}
 }
+
 void LocalizationNode::setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
 {
 	goal_count_ ++;
