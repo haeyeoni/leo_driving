@@ -8,6 +8,8 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Bool.h>
 #include <geometry_msgs/Twist.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
 
 namespace auto_driving {
 
@@ -17,7 +19,8 @@ class CmdPublishNode : public nodelet::Nodelet {
     float obs_x_, obs_y_;
 	float y_err_local_ = 0;
     float y_err_global_ = 0;
-
+    float line_start_y_, line_end_y_;
+    bool temp_is_obs_in_aisle;
 public:
 	CmdPublishNode() = default;
 
@@ -27,25 +30,27 @@ private:
 		ros::NodeHandle nhp = getPrivateNodeHandle();
 
         // Configuration
-        pnh.param("Kpx_param", Kpx_param_, 2.0);
-        pnh.param("Kpy_param", Kpy_param_, 1.1);
-        pnh.param("Kpy_param_rot", Kpy_param_rot_, 0.01);
-        pnh.param("linear_vel", linear_vel_, 0.0);
-        pnh.param("robot_width", robot_width_, 0.45);
-        pnh.param("line_width_min", line_width_min_, 0.7);
-        pnh.param("line_width_max", line_width_max_, 1.0);
-	    pnh.param("obs_coefficient", obs_coefficient_, 0.5);
-	    pnh.param("boundary_percent", boundary_percent_, 0.02);
-        pnh.param("spare_length", spare_length_, 1.5);
+        nhp.param("Kpx_param", config_.Kpx_param_, 2.0);
+        nhp.param("Kpy_param", config_.Kpy_param_, 1.1);
+        nhp.param("Kpy_param_rot", config_.Kpy_param_rot_, 0.01);
+        nhp.param("linear_vel", config_.linear_vel_, 0.0);
+        nhp.param("robot_width", config_.robot_width_, 0.45);
+        nhp.param("line_width_min", config_.line_width_min_, 0.7);
+        nhp.param("line_width_max", config_.line_width_max_, 1.0);
+	    nhp.param("obs_coefficient", config_.obs_coefficient_, 0.5);
+	    nhp.param("boundary_percent", config_.boundary_percent_, 0.02);
+        nhp.param("spare_length", config_.spare_length_, 1.5);
+        nhp.param("local_driving", config_.local_driving_, false);
+        nhp.param("check_obstacles", config_.check_obstacles_, false);
 
-        // Subscriber & Publisher
+        // // Subscriber & Publisher
         sub_joy_ = nhp.subscribe<sensor_msgs::Joy>("/joystick", 10, &CmdPublishNode::joyCallback, this);
-		sub_obs_dists = nhp.subscribe<std_msgs::Float32MultiArray> ("obstacles/obs_dists", 10, &CmdPublishNode::obsCallback, this);
-        sub_aisle_ = nhp.subscribe<sensor_msgs::PointCloud2> ("aisle/points_msg", 10, &&CmdPublishNode::aisleCallback, this);
+		sub_obs_dists_ = nhp.subscribe<std_msgs::Float32MultiArray> ("obstacles/obs_dists", 10, &CmdPublishNode::obsCallback, this);
+        sub_aisle_ = nhp.subscribe<sensor_msgs::PointCloud2> ("aisle/points_msg", 10, &CmdPublishNode::aisleCallback, this);
         sub_global_dist_err_ = nhp.subscribe<std_msgs::Float32>("/localization/global_dist_err", 10, &CmdPublishNode::publishCmd, this);
         //sub_global_ang_err_ = nhp.subscribe<std_msgs::Float32>("/localization/global_ang_err", 10, &CmdPublishNode::globalAngErrCallback, this);
 
-        pub_cmd_ = nh_.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
+        pub_cmd_ = nhp.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 	};
 
     void joyCallback(const sensor_msgs::Joy::ConstPtr& joy_msg)
@@ -53,7 +58,7 @@ private:
         //Button "B" : driving mode change -->   even: auto, odd: joy control
         if (joy_msg->buttons[1] == 1)	
         {
-            cout<<"B push"<<endl;
+            std::cout<<"B push"<<std::endl;
             joy_driving_ = !joy_driving_;
             ros::Duration(1).sleep();
         }
@@ -73,12 +78,15 @@ private:
         }
     }
 
-    void aisleCallback(const sensor_msgs::PointCloud2& cloud_msg)
+    void aisleCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg)
     {
-        PointCloud2Ptr tmp_cloud(new PointCloud2);
-        pcl_conversions::toPCL(cloud_msg, *tmp_cloud);
-        PointCloudPtr data_cloud(new PointCloud); 
-        pcl::fromPCLPointCloud2(*tmp_cloud, *data_cloud); 
+        pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2; 
+        pcl::PCLPointCloud2ConstPtr cloudPtr(cloud);
+
+        // Convert to PCL data type
+        pcl_conversions::toPCL(*cloud_msg, *cloud);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr data_cloud(new pcl::PointCloud<pcl::PointXYZ>); 
+        pcl::fromPCLPointCloud2(*cloud, *data_cloud); 
         
         pcl::PointXYZ nearest_point = data_cloud->points[0];
         pcl::PointXYZ reference_point = data_cloud->points[1];
@@ -91,7 +99,73 @@ private:
     }
 
     void publishCmd(const std_msgs::Float32::ConstPtr& global_err_msg)
-    {}
+    {
+        if(joy_driving_) // joystick mode
+		    return;
+        
+        geometry_msgs::Twist cmd_vel;
+        
+        // // Check Obstacles
+        // if (config_.check_obstacles_)
+        // {
+        //     temp_is_obs_in_aisle = true;
+        //     float line_length = line_end_y_ - line_start_y_;
+        //     float left_boundary = line_start_y_ - (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
+        // 	float right_boundary = line_end_y_ + (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
+        //     bool is_obs_in_aisle = obs_y_ > line_end_y && obs_y_ < line_start_y;
+        //     spare_length = 0;
+        //     // 1. Right Obstacle Update	
+        //     if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
+        //     {	
+        //         std::cout << "Right obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
+        //         float shift = params_.obs_coefficient_*(line_end-obs_y_);
+        //         y_err_local = (nearest_point.y + shift > left_boundary) ? left_boundary - nearest_point.y : y_err_local + shift;
+        //     }
+        //     // 2. Left Obstacle Update 
+        //     else if(obs_y_ > 0 && obs_y_ < 1 && obs_x_ < 0.6)
+        //     {
+        //         std::cout << "Left obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
+        //         float shift = params_.obs_coefficient_*(line_start-obs_y_);
+        //         y_err_local = (nearest_point.y + shift < right_boundary) ? right_boundary - nearest_point.y : y_err_local + shift;
+        //     }
+        //     // After obs disappear, go further 'spare_length'
+        //     if(is_obs_in_aisle != temp_is_obs_in_aisle)
+        //     { 
+        //         spare_length += linear_vel * 0.1;
+        //         y_err_local = 0;  
+        //         std::cout<< "straight foward of spare distance" <<std::endl;
+        //         if(spare_length > params_.spare_length_)
+        //         {
+        //             spare_length = 0;
+        //             temp_is_obs_in_aisle = false;
+        //             std::cout<<"spare finish"<<std::endl;
+        //         }
+        //     }
+			
+	    // }
+            
+        // if (config_.local_driving_) // No amcl
+        // {
+        //     cmd_vel.linear.x = config_.linear_vel_;
+        //     cmd_vel.angular.z = -config_.Kpy_ * y_err_local_; 
+        //     pub_cmd_.publish(cmd_vel);
+        // }
+
+        // if (dist_err_global > params_.global_dist_boundary_ && !is_rotating_) 
+        // {
+        //     // TODO : ADD CONDITION
+        //     /// IF (RP DRIVING)
+        //     if(params_.Kpx_param_*dist_err_global > linear_vel_)
+        //         cmd_vel.linear.x = linear_vel_;
+        //     else
+        //         cmd_vel.linear.x = params_.Kpx_param_*dist_err_global;
+        //     cmd_vel.angular.z = -Kpy_ * y_err_local_; 
+        //     pub_cmd_.publish(cmd_vel);	
+        //     // ELSE (VIDEO DRIVING)
+        //     // PUB (self_driving/auto_mode to be True)
+        // }
+        
+    }
 
 private:
 	// Publisher & Subscriber
@@ -114,7 +188,10 @@ private:
         double obs_coefficient_;
         double boundary_percent_;
         double spare_length_;
-
+        double line_width_min_;
+        double line_width_max_;
+        bool local_driving_;
+        bool check_obstacles_;
 	} Config;
 	Config config_;
 };

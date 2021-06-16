@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(auto_driving)
 
-add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)
 
 find_package(catkin REQUIRED COMPONENTS
         roscpp
@@ -19,6 +19,9 @@ catkin_package(
         CATKIN_DEPENDS nodelet roscpp sensor_msgs tf geometry_msgs pcl_conversions
         DEPENDS PCL
 )
+
+add_executable(rp_driving_node src/rp_node.cpp )
+target_link_libraries(rp_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
 ###########
 ## Build ##
@@ -43,14 +46,17 @@ add_library(ObstaclesNode src/obstacles_node.cpp)
 add_dependencies(ObstaclesNode ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(ObstaclesNode ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
-add_library(CmdPublishNode src/obstacles_node.cpp)
+add_library(CmdPublishNode src/cmd_publish_node.cpp)
 add_dependencies(ObstaclesNode ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(ObstaclesNode ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
 add_library(${PROJECT_NAME}_nodelets
   src/localization_node.cpp
-  src/aisle_detect_node.cpp)
-target_link_libraries(${PROJECT_NAME}_nodelets LocalizationNode AisleDetectNode ObstaclesNode)
+  src/aisle_detect_node.cpp
+  src/obstacles_node.cpp
+  src/cmd_publish_node.cpp)
+
+target_link_libraries(${PROJECT_NAME}_nodelets LocalizationNode AisleDetectNode ObstaclesNode CmdPublishNode)
 
 
 install(TARGETS LocalizationNode AisleDetectNode ObstaclesNode CmdPublishNode

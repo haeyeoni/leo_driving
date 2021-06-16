@@ -27,10 +27,10 @@
   <exec_depend>pcl_conversions</exec_depend>
 
   <export>
+    <nodelet plugin="${prefix}/plugins/cmd_publish_nodelet.xml" />
     <nodelet plugin="${prefix}/plugins/localization_nodelet.xml" />
     <nodelet plugin="${prefix}/plugins/aisle_detect_nodelet.xml" />
     <nodelet plugin="${prefix}/plugins/obstacles_nodelet.xml" />
-    <nodelet plugin="${prefix}/plugins/cmd_publish_nodelet.xml" />
   </export>
 
 

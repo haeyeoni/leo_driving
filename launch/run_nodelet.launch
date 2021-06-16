@@ -3,9 +3,9 @@
 
     <node pkg="nodelet" type="nodelet" name="LocalizationNode_loader" args="load auto_driving/LocalizationNode test_nodelet" output="screen">
     </node>
-
-    <!--<node pkg="nodelet" type="nodelet" name="AisleDetectNode_loader" args="load auto_driving/AisleDetectNode test_nodelet" output="screen">
-    </node>-->    
+<!--
+    <node pkg="nodelet" type="nodelet" name="AisleDetectNode_loader" args="load auto_driving/AisleDetectNode test_nodelet" output="screen">
+    </node>    -->
     
     <node pkg="nodelet" type="nodelet" name="ObstaclesNode_loader" args="load auto_driving/ObstaclesNode test_nodelet" output="screen">
     </node>
