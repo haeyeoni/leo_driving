@@ -1,7 +1,0 @@
-<library path="lib/liblocalization_node">
-  <class name="tunnel_driving/LocalizationNode" type="tunnel_driving::LocalizationNode" base_class_type="nodelet::Nodelet">
-    <description>
-      localization nodelet
-    </description>
-  </class>
-</library>

@@ -1,7 +1,0 @@
-<library path="lib/libaisle_detect_node">
-  <class name="tunnel_driving/AisleDetectNode" type="tunnel_driving::AisleDetectNode" base_class_type="nodelet::Nodelet">
-    <description>
-      aisle detect nodelet
-    </description>
-  </class>
-</library>

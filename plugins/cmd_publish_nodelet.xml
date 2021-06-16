@@ -1,0 +1,7 @@
+<library path="lib/libCmdPublishNode">
+    <class name="auto_driving/CmdPublishNode" type="auto_driving::CmdPublishNode" base_class_type="nodelet::Nodelet">
+        <description>
+            Cmd_vel publish nodelet
+        </description>
+    </class>
+</library>
