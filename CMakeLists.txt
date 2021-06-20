@@ -10,13 +10,14 @@ find_package(catkin REQUIRED COMPONENTS
         nodelet
         tf2_sensor_msgs
         pcl_conversions
+        laser_geometry
         )
 find_package(PCL REQUIRED)
 
 catkin_package(
         #  INCLUDE_DIRS include
         LIBRARIES LocalizationNode AisleDetectNode ObstaclesNode CmdPublishNode
-        CATKIN_DEPENDS nodelet roscpp sensor_msgs tf geometry_msgs pcl_conversions
+        CATKIN_DEPENDS nodelet roscpp sensor_msgs tf geometry_msgs pcl_conversions laser_geometry
         DEPENDS PCL
 )
 
