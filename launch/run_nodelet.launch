@@ -1,8 +1,6 @@
 <launch>
     <node pkg="nodelet" type="nodelet" name="test_nodelet"  args="manager" output="screen"/>
     
-    <node pkg="nodelet" type="nodelet" name="LocalizationNode_loader" args="load auto_driving/LocalizationNode test_nodelet" output="screen">
-    </node>
 
     <node pkg="nodelet" type="nodelet" name="AisleDetectNode_loader" args="load auto_driving/AisleDetectNode test_nodelet" output="screen">
     </node>    
@@ -12,5 +10,7 @@
 
     <node pkg="nodelet" type="nodelet" name="CmdPublishNode_loader" args="load auto_driving/CmdPublishNode test_nodelet" output="screen">
     </node>
+    <node pkg="nodelet" type="nodelet" name="LocalizationNode_loader" args="load auto_driving/LocalizationNode test_nodelet" output="screen">
+    </node> 
 
 </launch>

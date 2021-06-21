@@ -11,6 +11,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Float32MultiArray.h>
 
 namespace auto_driving {
 
@@ -31,10 +32,8 @@ private:
 		sub_goal_ = nhp.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &LocalizationNode::setGoal, this);    
 		sub_pose_ = nhp.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/amcl_pose", 10, &LocalizationNode::poseCallback, this);
 		
-		pub_arrival_ = nhp.advertise<std_msgs::Bool> ("localization/arrival", 10);
-		pub_rotating_ = nhp.advertise<std_msgs::Bool> ("localization/rotating", 10);	
-		pub_global_dist_err_ = nhp.advertise<std_msgs::Float32> ("localization/global_dist_err", 10);	
-		pub_global_angle_err_ = nhp.advertise<std_msgs::Float32> ("localization/global_ang_err", 10);	
+		pub_localization_ = nhp.advertise<std_msgs::Float32MultiArray>("/localization_data", 10); 
+		// [0]: global dist error, [1]: global angle error, [2]: arrival flag, [3]: rotating flag
 	};
 	
 	void setGoal(const geometry_msgs::PoseStamped::ConstPtr& click_msg)
@@ -51,22 +50,16 @@ private:
 			ROS_INFO_ONCE("Waiting for inserting goal... ");
 			return;
 		}
-		
-		std_msgs::Bool arrival_flag;
-		std_msgs::Bool rotating_flag;
-		std_msgs::Float32 global_dist_err_msg;
-		std_msgs::Float32 global_ang_err_msg;
+		std_msgs::Float32MultiArray localization_msgs;
 
 		current_goal_ = goal_set_[goal_index_ % goal_count_];	
-		std::cout<<"goal is set: "<<current_goal_.pose.position.x<<" "<<current_goal_.pose.position.y<<std::endl;	
+		ROS_INFO_ONCE("Goal is set: %d, %d", current_goal_.pose.position.x, current_goal_.pose.position.y);
 
 		// 1. Calculate Global Error
 		float x_err_global = current_goal_.pose.position.x - pose_msg->pose.pose.position.x;
 		float y_err_global = current_goal_.pose.position.y - pose_msg->pose.pose.position.y;
 		double dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);	
-
-		global_dist_err_msg.data = dist_err_global;
-		pub_global_dist_err_.publish(global_dist_err_msg);
+		localization_msgs.data[0] = dist_err_global;
 
 		std::cout << "goal (x,y): " <<"(" <<current_goal_.pose.position.x << ", " <<current_goal_.pose.position.y << ")" <<std::endl;		
 		std::cout << "curr (x,y): " <<"(" <<pose_msg->pose.pose.position.x << ", " << pose_msg->pose.pose.position.y << ")" <<std::endl;
@@ -78,13 +71,12 @@ private:
 		// 2.1 Not Arrived to the goal position
 		if (dist_err_global > config_.global_dist_boundary_ && !is_rotating_) 
 		{
-			arrival_flag.data = false;
+			localization_msgs.data[2] = 0; // arrival -> false
 		}
 	
 		// 2.2 Arrived to the goal position
 		else
 		{
-			arrival_flag.data = true;
 			tf::StampedTransform transform;
 			tf::TransformListener tf_listener;
 			if (!tf_listener.waitForTransform("/odom", "/base_link", ros::Time(0), ros::Duration(0.5), ros::Duration(0.01))) 
@@ -127,8 +119,7 @@ private:
 				angle_err_global += 2*M_PI;
 			
 			std::cout<<"rotating ... bounded_angle_err: "<<angle_err_global<<std::endl;
-			global_ang_err_msg.data = angle_err_global;
-			pub_global_angle_err_.publish(global_ang_err_msg);
+			localization_msgs.data[1] = angle_err_global;
 
 			if(abs(angle_err_global) < config_.global_angle_boundary_)
 			{
@@ -137,20 +128,15 @@ private:
 				is_rotating_ = false;
 			}
 		}
-		rotating_flag.data = is_rotating_;
-		pub_rotating_.publish(rotating_flag);
-		pub_arrival_.publish(arrival_flag);
+		localization_msgs.data[3] = is_rotating_;
+		pub_localization_.publish(localization_msgs);
 	}
 
 private:
 	ros::Subscriber sub_pose_;
 	ros::Subscriber sub_goal_;
-	ros::Publisher pub_arrival_;
-	ros::Publisher pub_rotating_;
-	ros::Publisher pub_global_dist_err_;
-	ros::Publisher pub_global_angle_err_;
+	ros::Publisher pub_localization_;
 	
-	bool joy_driving_ = false; // even: auto, odd: joy control
 	bool is_rotating_ = false;
 
 	// GOAL

@@ -39,8 +39,8 @@ private:
 		nhp.param("front_obstacle_dist", config_.front_obstacle_dist_, 0.1);
 
 		sub_pointcloud_ = nhp.subscribe("/velodyne_points", 10, &ObstaclesNode::cloudCallback, this);
-		pub_obs_ = nhp.advertise<sensor_msgs::PointCloud2> ("obstacles/cropped_obs", 10);
-        pub_obs_dists_ = nhp.advertise<std_msgs::Float32MultiArray> ("obstacles/obs_dists", 10);
+		pub_obs_ = nhp.advertise<sensor_msgs::PointCloud2> ("/cropped_obs", 10);
+        pub_obs_dists_ = nhp.advertise<std_msgs::Float32MultiArray> ("/obs_dists", 10);
 	};
 	
 	void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& pc_msg)

@@ -42,17 +42,21 @@ private:
         // Subscriber & Publisher
         sub_scan_ = nhp.subscribe("/up_scan", 10, &AisleDetectNode::scanCallback, this);
 
-        pub_line_ = nhp.advertise<sensor_msgs::PointCloud2>("aisle/cluster_line", 10);
-        pub_points_ = nhp.advertise<sensor_msgs::PointCloud2> ("aisle/points_msg", 10)
+        pub_line_ = nhp.advertise<sensor_msgs::PointCloud2>("/cluster_line", 10);
+        pub_points_ = nhp.advertise<sensor_msgs::PointCloud2> ("/aisle_points", 10);
 	};
 
 	void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_msg)
 	{
     	// 1. Data type conversions (laser scan -> pointcloud2)
 	    laser_geometry::LaserProjection projector;
-        ROS_INFO("scan callback");
-        sensor_msgs::PointCloud2 cloud;
-		projector.projectLaser(*scan_msg, cloud);
+        sensor_msgs::PointCloud2 cloud_msg;
+		projector.projectLaser(*scan_msg, cloud_msg);
+		
+		pcl::PCLPointCloud2::Ptr temp_cloud (new pcl::PCLPointCloud2);
+        pcl_conversions::toPCL(cloud_msg, *temp_cloud); // save cloud message to cloud2
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::fromPCLPointCloud2(*temp_cloud, *cloud);
 
 		// 2. Crop Point Cloud
 		pcl::ConditionAnd<pcl::PointXYZ>::Ptr range_condition(new pcl::ConditionAnd<pcl::PointXYZ> ());
@@ -81,7 +85,7 @@ private:
 		seg.setOptimizeCoefficients(true);
 		seg.setModelType(pcl::SACMODEL_LINE); // <- extract model setting
 		seg.setMethodType(pcl::SAC_RANSAC);
-		seg.setDistanceThreshold(params_.line_thresh_); // <- threshold (line width) // 0.5
+		seg.setDistanceThreshold(config_.line_thresh_); // <- threshold (line width) // 0.5
 		seg.setInputCloud(cloud_inrange); 
 		seg.segment(*inliers, *coefficients);
 		extract.setInputCloud(cloud_inrange);
@@ -167,8 +171,8 @@ private:
 		 
 		pcl::toROSMsg((*cloud_cluster), points_line);
 		pcl::toROSMsg(point_set, points_msg);
-		points_line.header.frame_id = scan_in->header.frame_id;
-		points_msg.header.frame_id = scan_in->header.frame_id;	
+		points_line.header.frame_id = scan_msg->header.frame_id;
+		points_msg.header.frame_id = scan_msg->header.frame_id;	
 		this->pub_points_.publish(points_msg);
 		this->pub_line_.publish(points_line);	
 	}

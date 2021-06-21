@@ -10,17 +10,25 @@
 #include <geometry_msgs/Twist.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
+#include <algorithm>
 
 namespace auto_driving {
 
 class CmdPublishNode : public nodelet::Nodelet {
-
     bool joy_driving_ = false; // even: auto, odd: joy control
-    float obs_x_, obs_y_;
-	float y_err_local_ = 0;
-    float y_err_global_ = 0;
-    float line_start_y_, line_end_y_;
+    
+    float obs_x_, obs_y_;	
     bool temp_is_obs_in_aisle;
+    
+    float global_dist_err_ = 0;
+    float global_ang_err_ = 0;    
+    float line_start_y_, line_end_y_;
+    float ref_y_, near_y_;
+    
+    bool is_rotating_, is_arrived_;
+    float dist_err_global_, angle_err_global_;
+    double spare_length;
+
 public:
 	CmdPublishNode() = default;
 
@@ -45,11 +53,12 @@ private:
 
         // // Subscriber & Publisher
         sub_joy_ = nhp.subscribe<sensor_msgs::Joy>("/joystick", 10, &CmdPublishNode::joyCallback, this);
-		sub_obs_dists_ = nhp.subscribe<std_msgs::Float32MultiArray> ("obstacles/obs_dists", 10, &CmdPublishNode::obsCallback, this);
-        sub_aisle_ = nhp.subscribe<sensor_msgs::PointCloud2> ("aisle/points_msg", 10, &CmdPublishNode::aisleCallback, this);
-        sub_global_dist_err_ = nhp.subscribe<std_msgs::Float32>("/localization/global_dist_err", 10, &CmdPublishNode::publishCmd, this);
-        //sub_global_ang_err_ = nhp.subscribe<std_msgs::Float32>("/localization/global_ang_err", 10, &CmdPublishNode::globalAngErrCallback, this);
-
+		sub_obs_dists_ = nhp.subscribe<std_msgs::Float32MultiArray> ("/obs_dists", 10, &CmdPublishNode::obsCallback, this);
+        sub_aisle_ = nhp.subscribe<sensor_msgs::PointCloud2> ("/aisle_points", 10, &CmdPublishNode::aisleCallback, this);    
+        sub_localization_ = nhp.subscribe<std_msgs::Float32MultiArray> ("/localization_data", 10, &CmdPublishNode::localDataCallback, this);
+    
+        sub_driving_ = nhp.subscribe<std_msgs::Bool> ("/lidar_driving", 10, &CmdPublishNode::publishCmd, this);
+        
         pub_cmd_ = nhp.advertise<geometry_msgs::Twist> ("/cmd_vel", 10);
 	};
 
@@ -82,89 +91,104 @@ private:
     {
         pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2; 
         pcl::PCLPointCloud2ConstPtr cloudPtr(cloud);
-
         // Convert to PCL data type
         pcl_conversions::toPCL(*cloud_msg, *cloud);
         pcl::PointCloud<pcl::PointXYZ>::Ptr data_cloud(new pcl::PointCloud<pcl::PointXYZ>); 
         pcl::fromPCLPointCloud2(*cloud, *data_cloud); 
-        
-        pcl::PointXYZ nearest_point = data_cloud->points[0];
-        pcl::PointXYZ reference_point = data_cloud->points[1];
-        pcl::PointXYZ line_start_point = data_cloud->points[2];
-        pcl::PointXYZ line_end_point = data_cloud->points[3];
 
-        y_err_local_ = reference_point.y - nearest_point.y;
-        line_start_y_ = line_start_point.y;
-        line_end_y_ = line_end_point.y;        
+        near_y_ = data_cloud->points[0].y;
+        ref_y_ = data_cloud->points[1].y;
+        line_start_y_ = data_cloud->points[2].y;
+        line_end_y_ = data_cloud->points[3].y;        
     }
 
-    void publishCmd(const std_msgs::Float32::ConstPtr& global_err_msg)
+    void localDataCallback(const std_msgs::Float32MultiArray::ConstPtr& local_msgs)
     {
-        if(joy_driving_) // joystick mode
+        dist_err_global_ = local_msgs->data[0]; 
+        angle_err_global_ = local_msgs->data[1];
+        is_arrived_ = local_msgs->data[2];
+        is_rotating_ = local_msgs->data[3];
+    }
+
+    void publishCmd(const std_msgs::Bool::ConstPtr &driving_start)
+    {
+        //// 1. Joystick Driving
+        if(joy_driving_) 
 		    return;
         
+        //// 2. Autonomous Driving
         geometry_msgs::Twist cmd_vel;
-        
-        // // Check Obstacles
-        // if (config_.check_obstacles_)
-        // {
-        //     temp_is_obs_in_aisle = true;
-        //     float line_length = line_end_y_ - line_start_y_;
-        //     float left_boundary = line_start_y_ - (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
-        // 	float right_boundary = line_end_y_ + (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
-        //     bool is_obs_in_aisle = obs_y_ > line_end_y && obs_y_ < line_start_y;
-        //     spare_length = 0;
-        //     // 1. Right Obstacle Update	
-        //     if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
-        //     {	
-        //         std::cout << "Right obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
-        //         float shift = params_.obs_coefficient_*(line_end-obs_y_);
-        //         y_err_local = (nearest_point.y + shift > left_boundary) ? left_boundary - nearest_point.y : y_err_local + shift;
-        //     }
-        //     // 2. Left Obstacle Update 
-        //     else if(obs_y_ > 0 && obs_y_ < 1 && obs_x_ < 0.6)
-        //     {
-        //         std::cout << "Left obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
-        //         float shift = params_.obs_coefficient_*(line_start-obs_y_);
-        //         y_err_local = (nearest_point.y + shift < right_boundary) ? right_boundary - nearest_point.y : y_err_local + shift;
-        //     }
-        //     // After obs disappear, go further 'spare_length'
-        //     if(is_obs_in_aisle != temp_is_obs_in_aisle)
-        //     { 
-        //         spare_length += linear_vel * 0.1;
-        //         y_err_local = 0;  
-        //         std::cout<< "straight foward of spare distance" <<std::endl;
-        //         if(spare_length > params_.spare_length_)
-        //         {
-        //             spare_length = 0;
-        //             temp_is_obs_in_aisle = false;
-        //             std::cout<<"spare finish"<<std::endl;
-        //         }
-        //     }
-			
-	    // }
-            
-        // if (config_.local_driving_) // No amcl
-        // {
-        //     cmd_vel.linear.x = config_.linear_vel_;
-        //     cmd_vel.angular.z = -config_.Kpy_ * y_err_local_; 
-        //     pub_cmd_.publish(cmd_vel);
-        // }
+        double y_err_local;
+        // 2.1 Check Obstacles
+        if (config_.check_obstacles_)
+        {
+            temp_is_obs_in_aisle = true;
+            float line_length = line_end_y_ - line_start_y_;
+            float left_boundary = line_start_y_ - (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
+        	float right_boundary = line_end_y_ + (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
+            bool is_obs_in_aisle = obs_y_ > line_end_y_ && obs_y_ < line_start_y_;
+            spare_length = 0;
+            // (1) Right Obstacle Update	
+            if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
+            {	
+                std::cout << "Right obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
+                float shift = config_.obs_coefficient_*(line_end_y_ - obs_y_);
+                y_err_local = (near_y_ + shift > left_boundary) ? left_boundary - near_y_ : y_err_local + shift;
+            }
+            // (2) Left Obstacle Update 
+            else if(obs_y_ > 0 && obs_y_ < 1 && obs_x_ < 0.6)
+            {
+                std::cout << "Left obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
+                float shift = config_.obs_coefficient_*(line_start_y_ - obs_y_);
+                y_err_local = (near_y_ + shift < right_boundary) ? right_boundary - near_y_ : y_err_local + shift;
+            }
+            // (3) After obs disappear, go further 'spare_length'
+            if(is_obs_in_aisle != temp_is_obs_in_aisle)
+            { 
+                spare_length += config_.linear_vel_ * 0.1;
+                y_err_local = 0;  
+                std::cout<< "straight foward of spare distance" <<std::endl;
+                if(spare_length > config_.spare_length_)
+                {
+                    spare_length = 0;
+                    temp_is_obs_in_aisle = false;
+                    std::cout<<"spare finish"<<std::endl;
+                }
+            }			
+	    }
+        else // Do not check Obstacles
+        {
+            y_err_local = ref_y_ - near_y_;
+        }
 
-        // if (dist_err_global > params_.global_dist_boundary_ && !is_rotating_) 
-        // {
-        //     // TODO : ADD CONDITION
-        //     /// IF (RP DRIVING)
-        //     if(params_.Kpx_param_*dist_err_global > linear_vel_)
-        //         cmd_vel.linear.x = linear_vel_;
-        //     else
-        //         cmd_vel.linear.x = params_.Kpx_param_*dist_err_global;
-        //     cmd_vel.angular.z = -Kpy_ * y_err_local_; 
-        //     pub_cmd_.publish(cmd_vel);	
-        //     // ELSE (VIDEO DRIVING)
-        //     // PUB (self_driving/auto_mode to be True)
-        // }
-        
+        // 2.2 Check Global Pose 
+        if (config_.local_driving_) // No amcl (Mapping Mode)
+        {
+            cmd_vel.linear.x = config_.linear_vel_;
+            cmd_vel.angular.z = -config_.Kpy_param_ * y_err_local; 
+        }
+        else // AMCL Mode
+        {
+            // 2.2.1 Not Arrived to the goal position
+            if (is_rotating_)
+            {
+                double bounded_ang_err = std::min(abs(double(angle_err_global_)), 1.0);
+                cmd_vel.angular.z = -config_.Kpy_param_rot_ * bounded_ang_err;
+                cmd_vel.linear.x = 0.0;
+            }
+            else if(is_arrived_)
+            {
+                cmd_vel.linear.x = 0.0;
+                cmd_vel.linear.z = 0.0;
+                ros::Duration(1).sleep();
+            }
+            else 
+            {
+                cmd_vel.linear.x = config_.linear_vel_;
+                cmd_vel.angular.z = -config_.Kpy_param_ * y_err_local; 
+            }
+        }
+        pub_cmd_.publish(cmd_vel);
     }
 
 private:
@@ -172,8 +196,8 @@ private:
 	ros::Subscriber sub_joy_;
     ros::Subscriber sub_obs_dists_;
 	ros::Subscriber sub_aisle_;
-    ros::Subscriber sub_global_dist_err_;
-    ros::Subscriber sub_global_ang_err_;
+	ros::Subscriber sub_localization_;
+	ros::Subscriber sub_driving_;
     
 	ros::Publisher pub_cmd_;
 
@@ -186,8 +210,8 @@ private:
         double linear_vel_;
         double robot_width_;
         double obs_coefficient_;
-        double boundary_percent_;
         double spare_length_;
+        double boundary_percent_;;
         double line_width_min_;
         double line_width_max_;
         bool local_driving_;
