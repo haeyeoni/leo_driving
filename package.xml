@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>auto_driving</name>
+  <name>leo_driving</name>
   <version>0.0.0</version>
   <description>Autonomous Tunnel Driving Package</description>
   <maintainer email="haeyeon8669@gmail.com">HaeyeonGim</maintainer>

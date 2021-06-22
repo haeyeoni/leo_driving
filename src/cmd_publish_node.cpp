@@ -46,6 +46,7 @@ private:
         nhp.param("line_width_min", config_.line_width_min_, 0.7);
         nhp.param("line_width_max", config_.line_width_max_, 1.0);
 	    nhp.param("obs_coefficient", config_.obs_coefficient_, 0.5);
+	    nhp.param("front_obs", config_.front_obs_, 0.6);
 	    nhp.param("boundary_percent", config_.boundary_percent_, 0.02);
         nhp.param("spare_length", config_.spare_length_, 1.5);
         nhp.param("local_driving", config_.local_driving_, false);
@@ -128,8 +129,16 @@ private:
         	float right_boundary = line_end_y_ + (line_length * config_.boundary_percent_ + 0.5 * config_.robot_width_);
             bool is_obs_in_aisle = obs_y_ > line_end_y_ && obs_y_ < line_start_y_;
             spare_length = 0;
+            // (0) Front Obstacle Update
+            if (obs_x_ < config_.front_obs_ && abs(obs_y_) < config_.robot_width_/4)
+            {
+                cmd_vel.linear.x = 0.0;
+                cmd_vel.linear.z = 0.0;
+                pub_cmd_.publish(cmd_vel);
+                return;
+            }
             // (1) Right Obstacle Update	
-            if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
+            else if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
             {	
                 std::cout << "Right obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
                 float shift = config_.obs_coefficient_*(line_end_y_ - obs_y_);
@@ -210,6 +219,7 @@ private:
         double linear_vel_;
         double robot_width_;
         double obs_coefficient_;
+        double front_obs_;
         double spare_length_;
         double boundary_percent_;;
         double line_width_min_;

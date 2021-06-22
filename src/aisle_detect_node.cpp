@@ -40,7 +40,7 @@ private:
         nhp.param("aisle_width", config_.aisle_width_, 0.6);
 
         // Subscriber & Publisher
-        sub_scan_ = nhp.subscribe("/up_scan", 10, &AisleDetectNode::scanCallback, this);
+        sub_scan_ = nhp.subscribe("/rp/scan", 10, &AisleDetectNode::scanCallback, this);
 
         pub_line_ = nhp.advertise<sensor_msgs::PointCloud2>("/cluster_line", 10);
         pub_points_ = nhp.advertise<sensor_msgs::PointCloud2> ("/aisle_points", 10);
