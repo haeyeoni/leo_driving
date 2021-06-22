@@ -35,9 +35,10 @@ This package is for running mobile robot under tunnel environment.
     * Publish: 
         * /cmd_vel (geometry_msgs/Twist): Final cmd_vel combining information from multiple nodes
 
-### To run the package (after building the code)
-```bash
-(terminal1) roslaunch auto_driving run_nodelet.launch 
-(termianl2) rostopic pub -r 10 /lidar_driving std_msgs/Bool True
+### Launch files
+* mapping.launch : Generates map with autonomous driving 
+* localization_driving.launch : Round trip driving with localization 
+* simulation.launch : run with bag file
 
-```
+### Params 
+to be added

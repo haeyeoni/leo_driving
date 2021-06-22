@@ -49,7 +49,7 @@ private:
 	    nhp.param("front_obs", config_.front_obs_, 0.6);
 	    nhp.param("boundary_percent", config_.boundary_percent_, 0.02);
         nhp.param("spare_length", config_.spare_length_, 1.5);
-        nhp.param("local_driving", config_.local_driving_, false);
+        nhp.param("amcl_driving", config_.amcl_driving_, false);
         nhp.param("check_obstacles", config_.check_obstacles_, false);
 
         // // Subscriber & Publisher
@@ -171,7 +171,7 @@ private:
         }
 
         // 2.2 Check Global Pose 
-        if (config_.local_driving_) // No amcl (Mapping Mode)
+        if (!config_.amcl_driving_) // No amcl (Mapping Mode)
         {
             cmd_vel.linear.x = config_.linear_vel_;
             cmd_vel.angular.z = -config_.Kpy_param_ * y_err_local; 
@@ -224,7 +224,7 @@ private:
         double boundary_percent_;;
         double line_width_min_;
         double line_width_max_;
-        bool local_driving_;
+        bool amcl_driving_;
         bool check_obstacles_;
 	} Config;
 	Config config_;

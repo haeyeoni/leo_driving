@@ -1,0 +1,11 @@
+Kpx_param: 2.0
+Kpy_param: 1.1
+Kpy_param_rot: 0.01
+linear_vel: 0.0
+robot_width: 0.45
+obs_coefficient: 0.5
+front_obs: 0.6
+boundary_percent: 0.02
+spare_length: 1.5
+amcl_driving: false
+check_obstacles: false

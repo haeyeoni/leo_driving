@@ -6,7 +6,7 @@
     <arg name="use_static_tf" default="true"/>
     <arg name="map_file" default="/home/catkin_ws/maps/map.yaml"/>
 
-    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find leo_driving)/rviz/view_point.rviz"/>
+    <node type="rviz" name="rviz" pkg="rviz" args="-d $(find leo_driving)/rviz/view_data.rviz"/>
       
     <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
     <node name="amcl" pkg="amcl" type="amcl" clear_params="true" output="screen">
@@ -26,15 +26,31 @@
     <include if="$(arg use_velo)" file="$(find velodyne_pointcloud)/launch/VLP16_points.launch"/>
     <include if="$(arg use_joy)" file="$(find teleop_twist_joy)/launch/teleop.launch"/>
     
-    <node pkg="rostopic" type="rostopic" name="arbitrary_name" args="pub /pkg_topic pkg_executable_file/message" output="screen"/>
+    <!-- LEO_DRIVING PACKAGE-->
+    <node pkg="rostopic" type="rostopic" name="lidar_driving_trigger" args="pub -r 10 /lidar_driving std_msgs/Bool true" output="screen"/>
     <node pkg="nodelet" type="nodelet" name="nodelet_manager"  args="manager" output="screen"/>
-    <node pkg="nodelet" type="nodelet" name="AisleDetectNode_loader" args="load auto_driving/AisleDetectNode nodelet_manager" output="screen"/> 
-    <node pkg="nodelet" type="nodelet" name="ObstaclesNode_loader" args="load auto_driving/ObstaclesNode nodelet_manager" output="screen"/>
-    <node pkg="nodelet" type="nodelet" name="CmdPublishNode_loader" args="load auto_driving/CmdPublishNode nodelet_manager" output="screen"/>
-    <node pkg="nodelet" type="nodelet" name="LocalizationNode_loader" args="load auto_driving/LocalizationNode nodelet_manager" output="screen"/>
+    
+    <node pkg="nodelet" type="nodelet" name="AisleDetectNode_loader" args="load auto_driving/AisleDetectNode nodelet_manager" output="screen">
+        <rosparam command="load" file="$(find leo_driving)/config/aisle_detect.yaml"/>
+    </node>
 
+    <node pkg="nodelet" type="nodelet" name="ObstaclesNode_loader" args="load auto_driving/ObstaclesNode nodelet_manager" output="screen">
+        <rosparam command="load" file="$(find leo_driving)/config/obstacles.yaml"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="CmdPublishNode_loader" args="load auto_driving/CmdPublishNode nodelet_manager" output="screen">
+        <rosparam command="load" file="$(find leo_driving)/config/cmd_publish.yaml"/>
+        <param name="amcl_driving" value="true"/>
+    </node>
+
+    <node pkg="nodelet" type="nodelet" name="LocalizationNode_loader" args="load auto_driving/LocalizationNode nodelet_manager" output="screen">
+        <rosparam command="load" file="$(find leo_driving)/config/localization.yaml"/>
+    </node>
+
+    <!-- STATIC TF PUBLISHER -->
     <node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_rp" args="0 0 0 3.141592 0 0 base_link laser 100" />
     <node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_velo" args="0 0 0 0 0 0 base_link velodyne 100" />
     <node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="base_link_to_imu" args="0 0 0 0.0 0 0 base_link imu 100" />
+    <node if="$(arg use_static_tf)" pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0.0 0 0 map odom 100" />
 
 </launch>
