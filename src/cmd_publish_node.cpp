@@ -25,7 +25,8 @@ class CmdPublishNode : public nodelet::Nodelet {
     float line_start_y_, line_end_y_;
     float ref_y_, near_y_;
     
-    bool is_rotating_, is_arrived_;
+    bool is_rotating_ = false;
+    bool is_arrived_ = false;
     float dist_err_global_, angle_err_global_;
     double spare_length;
 
@@ -53,7 +54,7 @@ private:
         nhp.param("check_obstacles", config_.check_obstacles_, false);
 
         // // Subscriber & Publisher
-        sub_joy_ = nhp.subscribe<sensor_msgs::Joy>("/joystick", 10, &CmdPublishNode::joyCallback, this);
+        sub_joy_ = nhp.subscribe<sensor_msgs::Joy>("/joystick", 1, &CmdPublishNode::joyCallback, this);
 		sub_obs_dists_ = nhp.subscribe<std_msgs::Float32MultiArray> ("/obs_dists", 10, &CmdPublishNode::obsCallback, this);
         sub_aisle_ = nhp.subscribe<sensor_msgs::PointCloud2> ("/aisle_points", 10, &CmdPublishNode::aisleCallback, this);    
         sub_localization_ = nhp.subscribe<std_msgs::Float32MultiArray> ("/localization_data", 10, &CmdPublishNode::localDataCallback, this);
@@ -70,8 +71,16 @@ private:
         {
             std::cout<<"B push"<<std::endl;
             joy_driving_ = !joy_driving_;
-            ros::Duration(1).sleep();
+            ros::Duration(0.5).sleep();
         }
+	if(joy_driving_)
+	{ 
+		geometry_msgs::Twist cmd_vel;
+		cmd_vel.linear.x = joy_msg -> axes[1] * 0.5;
+		cmd_vel.angular.z = joy_msg -> axes[0] * 0.5;
+		pub_cmd_.publish(cmd_vel);
+		return;
+	}
     }
 
 	void obsCallback(const std_msgs::Float32MultiArray::ConstPtr& dists_msg)
@@ -130,14 +139,18 @@ private:
             bool is_obs_in_aisle = obs_y_ > line_end_y_ && obs_y_ < line_start_y_;
             spare_length = 0;
             // (0) Front Obstacle Update
-            if (obs_x_ < config_.front_obs_ && abs(obs_y_) < config_.robot_width_/4)
+		ROS_INFO("Front obstacles: %f, %f, %s", obs_x_, obs_y_,is_rotating_);
+		
+            if (obs_x_ < config_.front_obs_ && abs(obs_y_) < config_.robot_width_/4 && !is_rotating_)
             {
-                cmd_vel.linear.x = 0.0;
+//		ROS_INFO("Front obstacles: %f, %f", obs_x_, obs_y_);
+		cmd_vel.linear.x = 0.0;
                 cmd_vel.linear.z = 0.0;
                 pub_cmd_.publish(cmd_vel);
                 return;
             }
-            // (1) Right Obstacle Update	
+            /*
+		// (1) Right Obstacle Update	
             else if(obs_y_ < 0 && obs_y_ > -1 && obs_x_ < 0.6)
             {	
                 std::cout << "Right obstacle is detected, distance = " << obs_y_ << ", x = " <<  obs_x_<<std::endl;
@@ -163,7 +176,8 @@ private:
                     temp_is_obs_in_aisle = false;
                     std::cout<<"spare finish"<<std::endl;
                 }
-            }			
+            }
+	*/			
 	    }
         else // Do not check Obstacles
         {
@@ -179,6 +193,7 @@ private:
         else // AMCL Mode
         {
             // 2.2.1 Not Arrived to the goal position
+		if (goal_set
             if (is_rotating_)
             {
                 double bounded_ang_err = std::min(abs(double(angle_err_global_)), 1.0);
