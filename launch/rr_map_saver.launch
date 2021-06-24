@@ -1,5 +1,0 @@
-<launch>
-  <!--Map server-->
-  <node name="map_saver" pkg="map_server" type="map_saver" args="-f $(find navigation)/maps/map">
-  </node>
-</launch>

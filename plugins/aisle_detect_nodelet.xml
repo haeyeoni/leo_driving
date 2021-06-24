@@ -1,0 +1,7 @@
+<library path="lib/libAisleDetectNode">
+    <class name="auto_driving/AisleDetectNode" type="auto_driving::AisleDetectNode" base_class_type="nodelet::Nodelet">
+        <description>
+            Aisle detection nodelet
+        </description>
+    </class>
+</library>

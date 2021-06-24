@@ -1,44 +1,73 @@
-cmake_minimum_required(VERSION 3.1.3)
+cmake_minimum_required(VERSION 2.8.3)
 project(leo_driving)
 
-find_package(catkin REQUIRED COMPONENTS
-  laser_geometry
-  geometry_msgs
-  sensor_msgs
-  roscpp
-  std_msgs
-  tf
-  pcl_conversions
-  pcl_ros)
+add_compile_options(-std=c++14)
 
-find_package(Eigen3 REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+        roscpp
+        sensor_msgs
+        tf
+        nodelet
+        tf2_sensor_msgs
+        pcl_conversions
+        laser_geometry
+        )
 find_package(PCL REQUIRED)
 
-include_directories(
-  include
-	${catkin_INCLUDE_DIRS} 
-	#${EIGEN3_INCLUDE_DIR}
-	${PCL_INCLUDE_DIRS}
-)
-	
-
 catkin_package(
-  CATKIN_DEPENDS geometry_msgs roscpp std_msgs sensor_msgs tf pcl_conversions
-  DEPENDS EIGEN3 PCL 
+        #  INCLUDE_DIRS include
+        LIBRARIES LocalizationNode AisleDetectNode ObstaclesNode CmdPublishNode
+        CATKIN_DEPENDS nodelet roscpp sensor_msgs tf geometry_msgs pcl_conversions laser_geometry
+        DEPENDS PCL
 )
 
-## Compile as C++14, supported in ROS Kinetic and newer
-# set_property(TARGET invz_player PROPERTY CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+#add_executable(rp_driving_node src/rp_node.cpp )
+#target_link_libraries(rp_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
 
-add_definitions( -march=native )
+###########
+## Build ##
+###########
 
-#add_subdirectory(src/lib)
+include_directories(
+        include
+        ${catkin_INCLUDE_DIRS}
+        ${PCL_INCLUDE_DIRS}
+)
 
-add_executable(leo_driving_node src/cmd_vel_test.cpp src/serial.cpp)
-target_link_libraries(leo_driving_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+## Declare a C++ library
+add_library(LocalizationNode src/localization_node.cpp)
+add_dependencies(LocalizationNode ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(LocalizationNode ${catkin_LIBRARIES})
 
-add_executable(obs_avoiding_node src/obs_avoid.cpp)
-target_link_libraries(obs_avoiding_node ${catkin_LIBRARIES} ${PCL_LIBRARIES} )
+add_library(AisleDetectNode src/aisle_detect_node.cpp)
+add_dependencies(AisleDetectNode ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(AisleDetectNode ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 
+add_library(ObstaclesNode src/obstacles_node.cpp)
+add_dependencies(ObstaclesNode ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(ObstaclesNode ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+add_library(CmdPublishNode src/cmd_publish_node.cpp)
+add_dependencies(ObstaclesNode ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(ObstaclesNode ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+add_library(${PROJECT_NAME}_nodelets
+  src/localization_node.cpp
+  src/aisle_detect_node.cpp
+  src/obstacles_node.cpp
+  src/cmd_publish_node.cpp)
+
+target_link_libraries(${PROJECT_NAME}_nodelets LocalizationNode AisleDetectNode ObstaclesNode CmdPublishNode)
+
+
+install(TARGETS LocalizationNode AisleDetectNode ObstaclesNode CmdPublishNode
+        DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+
+install(DIRECTORY include/${PROJECT_NAME}/
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+
+install(DIRECTORY plugins
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
+install(DIRECTORY launch
+        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

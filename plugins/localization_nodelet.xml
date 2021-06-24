@@ -1,0 +1,7 @@
+<library path="lib/libLocalizationNode">
+    <class name="auto_driving/LocalizationNode" type="auto_driving::LocalizationNode" base_class_type="nodelet::Nodelet">
+        <description>
+            Localization nodelet
+        </description>
+    </class>
+</library>
