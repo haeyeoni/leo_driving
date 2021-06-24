@@ -9,7 +9,7 @@
     
     <!-- LEO_DRIVING PACKAGE-->
     <node pkg="nodelet" type="nodelet" name="nodelet_manager"  args="manager" output="screen"/>
-    <!--<node pkg="rostopic" type="rostopic" name="lidar_driving_trigger" args="pub -r 10 /lidar_driving std_msgs/Bool true" output="screen"/>
+    <node pkg="rostopic" type="rostopic" name="lidar_driving_trigger" args="pub -r 10 /lidar_driving std_msgs/Bool true" output="screen"/>
     
     
     <node pkg="nodelet" type="nodelet" name="AisleDetectNode_loader" args="load auto_driving/AisleDetectNode nodelet_manager" output="screen">
@@ -24,7 +24,7 @@
     <node pkg="nodelet" type="nodelet" name="CmdPublishNode_loader" args="load auto_driving/CmdPublishNode nodelet_manager" output="screen">
         <rosparam command="load" file="$(find leo_driving)/config/cmd_publish.yaml"/>
         <param name="amcl_driving" value="true"/>
-    </node> -->
+    </node> 
 
     <node pkg="nodelet" type="nodelet" name="LocalizationNode_loader" args="load auto_driving/LocalizationNode nodelet_manager" output="screen">
         <rosparam command="load" file="$(find leo_driving)/config/localization.yaml"/>

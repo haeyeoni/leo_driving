@@ -45,33 +45,38 @@ private:
 
 	void poseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_msg)
 	{
-		bool is_arrived = false;
+		std_msgs::Float32MultiArray localization_msgs;
+		localization_msgs.data.clear();
 		if (goal_count_ < 2)
 		{
 			ROS_INFO_ONCE("Waiting for inserting goal... ");
+			localization_msgs.data.push_back(10000); // global_dist_err
+			localization_msgs.data.push_back(10000); // global_ang_err
+			localization_msgs.data.push_back(true); // is_arrived -> Not moving
+			localization_msgs.data.push_back(false); // is_rotating
+			pub_localization_.publish(localization_msgs);
 			return;
 		}
-		std_msgs::Float32MultiArray localization_msgs;
-		localization_msgs.data.clear();
+		bool is_arrived = false;
 		current_goal_ = goal_set_[goal_index_ % goal_count_];	
 		ROS_INFO_ONCE("Goal is set: %d, %d", current_goal_.pose.position.x, current_goal_.pose.position.y);
 
 		// 1. Calculate Global Error
-		float x_err_global = current_goal_.pose.position.x - pose_msg->pose.pose.position.x;
-		float y_err_global = current_goal_.pose.position.y - pose_msg->pose.pose.position.y;
-		double dist_err_global = sqrt(x_err_global*x_err_global + y_err_global*y_err_global);	
-		double angle_err_global;
+		float global_x_err = current_goal_.pose.position.x - pose_msg->pose.pose.position.x;
+		float global_y_err = current_goal_.pose.position.y - pose_msg->pose.pose.position.y;
+		double global_dist_err = sqrt(global_x_err*global_x_err + global_y_err*global_y_err);	
+		double global_ang_err;
 		std::cout << "goal (x,y): " <<"(" <<current_goal_.pose.position.x << ", " <<current_goal_.pose.position.y << ")" <<std::endl;		
 		std::cout << "curr (x,y): " <<"(" <<pose_msg->pose.pose.position.x << ", " << pose_msg->pose.pose.position.y << ")" <<std::endl;
-		std::cout << "distance :" << dist_err_global <<std::endl;
+		std::cout << "distance :" << global_dist_err <<std::endl;
 		std::cout <<" " <<std::endl;
 		double goal_yaw;	
 		
 		// 2.1 Not Arrived to the goal position
-		if (dist_err_global > config_.global_dist_boundary_ && !is_rotating_) 
+		if (global_dist_err > config_.global_dist_boundary_ && !is_rotating_) 
 		{
 			is_arrived = false;
-			angle_err_global = M_PI;
+			global_ang_err = M_PI;
 		}
 	
 		// 2.2 Arrived to the goal position
@@ -101,7 +106,7 @@ private:
 		
 			if(!is_rotating_) 
 			{
-				std::cout<<"**Arrived to the goal position: "<<dist_err_global<<std::endl;
+				std::cout<<"**Arrived to the goal position: "<<global_dist_err<<std::endl;
 				goal_yaw = yaw + M_PI; // save current when start rotating
 				if(goal_yaw > M_PI)
 					goal_yaw -= 2*M_PI;
@@ -113,23 +118,23 @@ private:
 
 			// 2.2.1 Check whether robot should rotate
 				//To rotate 180 degree from the position where the mobile robot is arrived. // goalyaw mean "arrival yaw"
-			angle_err_global = goal_yaw - yaw;  
+			global_ang_err = goal_yaw - yaw;  
 			std::cout<<  "start yaw: " << goal_yaw  <<", cur yaw: " << yaw<<std::endl;
-			if(angle_err_global > M_PI)
-				angle_err_global -= 2*M_PI;
-			else if(angle_err_global < -M_PI)
-				angle_err_global += 2*M_PI;
+			if(global_ang_err > M_PI)
+				global_ang_err -= 2*M_PI;
+			else if(global_ang_err < -M_PI)
+				global_ang_err += 2*M_PI;
 			
-			std::cout<<"rotating ... bounded_angle_err: "<<angle_err_global<<std::endl;
-			if(abs(angle_err_global) < config_.global_angle_boundary_)
+			std::cout<<"rotating ... bounded_angle_err: "<<global_ang_err<<std::endl;
+			if(abs(global_ang_err) < config_.global_angle_boundary_)
 			{
 				std::cout<<"finish rotation"<<std::endl;
 				goal_index_++;
 				is_rotating_ = false;
 			}
 		}
-		localization_msgs.data.push_back(dist_err_global);
-		localization_msgs.data.push_back(angle_err_global);
+		localization_msgs.data.push_back(global_dist_err);
+		localization_msgs.data.push_back(global_ang_err);
 		localization_msgs.data.push_back(is_arrived);
 		localization_msgs.data.push_back(is_rotating_);
 		pub_localization_.publish(localization_msgs);

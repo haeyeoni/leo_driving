@@ -16,19 +16,22 @@ namespace auto_driving {
 
 class CmdPublishNode : public nodelet::Nodelet {
     bool joy_driving_ = false; // even: auto, odd: joy control
-    
+    // Obs
     float obs_x_, obs_y_;	
     bool temp_is_obs_in_aisle;
-    
+    double spare_length;
+    // Amcl
     float global_dist_err_ = 0;
     float global_ang_err_ = 0;    
+    
+    // Aisle
     float line_start_y_, line_end_y_;
     float ref_y_, near_y_;
     
+    // 
     bool is_rotating_ = false;
-    bool is_arrived_ = false;
-    float dist_err_global_, angle_err_global_;
-    double spare_length;
+    bool is_arrived_ = true;
+    
 
 public:
 	CmdPublishNode() = default;
@@ -114,8 +117,8 @@ private:
 
     void localDataCallback(const std_msgs::Float32MultiArray::ConstPtr& local_msgs)
     {
-        dist_err_global_ = local_msgs->data[0]; 
-        angle_err_global_ = local_msgs->data[1];
+        global_dist_err_ = local_msgs->data[0]; 
+        global_ang_err_ = local_msgs->data[1];
         is_arrived_ = local_msgs->data[2];
         is_rotating_ = local_msgs->data[3];
     }
@@ -193,10 +196,9 @@ private:
         else // AMCL Mode
         {
             // 2.2.1 Not Arrived to the goal position
-		if (goal_set
             if (is_rotating_)
             {
-                double bounded_ang_err = std::min(abs(double(angle_err_global_)), 1.0);
+                double bounded_ang_err = std::min(abs(double(global_ang_err_)), 1.0);
                 cmd_vel.angular.z = -config_.Kpy_param_rot_ * bounded_ang_err;
                 cmd_vel.linear.x = 0.0;
             }
