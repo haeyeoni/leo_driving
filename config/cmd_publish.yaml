@@ -1,6 +1,6 @@
 Kpx_param: 2.0
 Kpy_param: 1.1
-Kpy_param_rot: 0.01
+Kpy_param_rot: 0.1 #0.01
 linear_vel: 0.1
 robot_width: 0.8
 obs_coefficient: 0.5

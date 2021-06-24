@@ -70,7 +70,6 @@ private:
 		std::cout << "curr (x,y): " <<"(" <<pose_msg->pose.pose.position.x << ", " << pose_msg->pose.pose.position.y << ")" <<std::endl;
 		std::cout << "distance :" << global_dist_err <<std::endl;
 		std::cout <<" " <<std::endl;
-		double goal_yaw;	
 		
 		// 2.1 Not Arrived to the goal position
 		if (global_dist_err > config_.global_dist_boundary_ && !is_rotating_) 
@@ -83,7 +82,6 @@ private:
 		else
 		{
 			is_arrived = true;
-			localization_msgs.data.insert(localization_msgs.data.begin()+2, 1.0);
 			tf::StampedTransform transform;
 			tf::TransformListener tf_listener;
 			if (!tf_listener.waitForTransform("/odom", "/base_link", ros::Time(0), ros::Duration(0.5), ros::Duration(0.01))) 
@@ -131,6 +129,7 @@ private:
 				std::cout<<"finish rotation"<<std::endl;
 				goal_index_++;
 				is_rotating_ = false;
+				is_arrived = false;
 			}
 		}
 		localization_msgs.data.push_back(global_dist_err);
@@ -150,6 +149,8 @@ private:
 	// GOAL
 	int goal_index_ = 0;
 	int goal_count_ = 0;    
+	double goal_yaw = M_PI;	
+		
 	std::vector<geometry_msgs::PoseStamped> goal_set_;
 	geometry_msgs::PoseStamped current_goal_;
 

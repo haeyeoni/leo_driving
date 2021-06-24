@@ -17,16 +17,19 @@ namespace auto_driving {
 class CmdPublishNode : public nodelet::Nodelet {
     bool joy_driving_ = false; // even: auto, odd: joy control
     // Obs
-    float obs_x_, obs_y_;	
-    bool temp_is_obs_in_aisle;
-    double spare_length;
+    float obs_x_ = 10000;
+    float obs_y_ = 10000;	
+    bool temp_is_obs_in_aisle = false;
+    double spare_length = 0;
     // Amcl
     float global_dist_err_ = 0;
     float global_ang_err_ = 0;    
     
     // Aisle
-    float line_start_y_, line_end_y_;
-    float ref_y_, near_y_;
+    float line_start_y_ = -30; 
+    float line_end_y_ = 30;
+    float ref_y_ = 0;
+    float near_y_ = 0;
     
     // 
     bool is_rotating_ = false;
@@ -131,7 +134,7 @@ private:
         
         //// 2. Autonomous Driving
         geometry_msgs::Twist cmd_vel;
-        double y_err_local;
+        double y_err_local = ref_y_ - near_y_;
         // 2.1 Check Obstacles
         if (config_.check_obstacles_)
         {
@@ -142,11 +145,9 @@ private:
             bool is_obs_in_aisle = obs_y_ > line_end_y_ && obs_y_ < line_start_y_;
             spare_length = 0;
             // (0) Front Obstacle Update
-		ROS_INFO("Front obstacles: %f, %f, %s", obs_x_, obs_y_,is_rotating_);
 		
             if (obs_x_ < config_.front_obs_ && abs(obs_y_) < config_.robot_width_/4 && !is_rotating_)
             {
-//		ROS_INFO("Front obstacles: %f, %f", obs_x_, obs_y_);
 		cmd_vel.linear.x = 0.0;
                 cmd_vel.linear.z = 0.0;
                 pub_cmd_.publish(cmd_vel);
@@ -182,16 +183,12 @@ private:
             }
 	*/			
 	    }
-        else // Do not check Obstacles
-        {
-            y_err_local = ref_y_ - near_y_;
-        }
 
         // 2.2 Check Global Pose 
         if (!config_.amcl_driving_) // No amcl (Mapping Mode)
         {
             cmd_vel.linear.x = config_.linear_vel_;
-            cmd_vel.angular.z = -config_.Kpy_param_ * y_err_local; 
+	    cmd_vel.angular.z = -config_.Kpy_param_ * y_err_local; 
         }
         else // AMCL Mode
         {
