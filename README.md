@@ -52,9 +52,9 @@ This package is for running mobile robot under tunnel environment.
         * Kpy_param_rot (default 0.01): Rotation control gain for static rotation
         * linear_vel (default 0.0): Linear velocity of mobile robot (m/s)
         * robot_width (default 0.45): Robot width (m)
-      *  obs_coefficient (default 0.5): Obstacle avoidance control ratio
-	     * front_obs(default 0.6): Distance of front obstacles to be avoided 
-	     * boundary_percent (default 0.02): Percentage of free width on both sides of the aisle for safe driving 
+        *  obs_coefficient (default 0.5): Obstacle avoidance control ratio
+        * front_obs(default 0.6): Distance of front obstacles to be avoided 
+        * boundary_percent (default 0.02): Percentage of free width on both sides of the aisle for safe driving 
         * spare_length (default 1.5): Additional driving after avoiding obstacles
         * amcl_driving (default false): Whether to check the location of mobile robot
         * check_obstacles (default false): Whether to check for obstacles
@@ -72,3 +72,10 @@ sudo apt-get install ros-melodic-amcl
 * mapping.launch : Generates map with autonomous driving (gmapping ros package is included)
 * amcl_driving.launch : Round trip driving with localization (amcl ros package is included)
 * simulation.launch : run with bag file
+__Running__
+```bash
+roslaunch leo_driving only_driving.launch
+roslaunch leo_driving mapping.launch
+roslaunch leo_driving amcl_driving.launch
+roslaunch leo_driving simulation.launch
+```
