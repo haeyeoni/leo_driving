@@ -45,13 +45,10 @@ private:
 		ros::NodeHandle nhp = getPrivateNodeHandle();
 
         // Configuration
-        nhp.param("Kpx_param", config_.Kpx_param_, 2.0);
         nhp.param("Kpy_param", config_.Kpy_param_, 1.1);
         nhp.param("Kpy_param_rot", config_.Kpy_param_rot_, 0.01);
         nhp.param("linear_vel", config_.linear_vel_, 0.0);
         nhp.param("robot_width", config_.robot_width_, 0.45);
-        nhp.param("line_width_min", config_.line_width_min_, 0.7);
-        nhp.param("line_width_max", config_.line_width_max_, 1.0);
 	    nhp.param("obs_coefficient", config_.obs_coefficient_, 0.5);
 	    nhp.param("front_obs", config_.front_obs_, 0.6);
 	    nhp.param("boundary_percent", config_.boundary_percent_, 0.02);
@@ -227,7 +224,6 @@ private:
 	/** configuration parameters */
 	typedef struct
 	{
-		double Kpx_param_;
 		double Kpy_param_;
 		double Kpy_param_rot_;
         double linear_vel_;
@@ -235,9 +231,7 @@ private:
         double obs_coefficient_;
         double front_obs_;
         double spare_length_;
-        double boundary_percent_;;
-        double line_width_min_;
-        double line_width_max_;
+        double boundary_percent_;
         bool amcl_driving_;
         bool check_obstacles_;
 	} Config;

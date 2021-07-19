@@ -35,8 +35,12 @@ private:
 		ros::NodeHandle nhp = getPrivateNodeHandle();
 		
 		// Configuration //
-		nhp.param("obstacle_coefficient", config_.obstacle_coefficient_, 0.005);
-		nhp.param("front_obstacle_dist", config_.front_obstacle_dist_, 0.1);
+		nhp.param("obs_x_min", config_.obs_x_min_, 0.0);
+		nhp.param("obs_x_max", config_.obs_x_max_, 1.0);
+		nhp.param("obs_y_min", config_.obs_y_min_, -0.3);
+		nhp.param("obs_y_max", config_.obs_y_max_, 0.3);
+		nhp.param("obs_z_min", config_.obs_z_min_, -0.1);
+		nhp.param("obs_z_max", config_.obs_z_max_, 0.5);
 
 		sub_pointcloud_ = nhp.subscribe("/velodyne_points", 10, &ObstaclesNode::cloudCallback, this);
 		pub_obs_ = nhp.advertise<sensor_msgs::PointCloud2> ("/cropped_obs", 10);
@@ -73,17 +77,17 @@ private:
 
 		pass.setInputCloud (input_ptr);         
 		pass.setFilterFieldName ("y");         
-		pass.setFilterLimits (-0.3, 0.3);    
+		pass.setFilterLimits (config_.obs_y_min_, config_.obs_y_max_);    
 		pass.filter (*output_ptr);              
 																																																								
 		pass.setInputCloud(output_ptr);
 		pass.setFilterFieldName("z");           
-		pass.setFilterLimits(-0.1, 0.5);       
+		pass.setFilterLimits(config_.obs_z_min_, config_.obs_z_max_);       
 		pass.filter(*output_ptr);             
 
 		pass.setInputCloud (output_ptr);      
 		pass.setFilterFieldName ("x");        
-		pass.setFilterLimits (0, 1);          
+		pass.setFilterLimits (config_.obs_x_min_, config_.obs_x_max_);          
 		pass.filter (*output_ptr);           
 
 		if(output_ptr->size() != 0)
@@ -135,14 +139,12 @@ private:
 
 				if(count_positive > count_negative) //obstacles in left side
 				{
-					// shift_position_ = std::min(params_.obstacle_coefficient_/output_ptr->points[nn_indices[min_positive_point]].x, 0.01);
 					//std::cout<<"[LEFT OBSTACLES] Distance to obstacles(m): "<<abs(output_ptr->points[nn_indices[min_positive_point]].x) <<std::endl;	
 					dists.data.push_back(output_ptr->points[nn_indices[min_positive_point]].x);
 					dists.data.push_back(output_ptr->points[nn_indices[min_positive_point]].y);
 				}
 				else	//obstacles in right side
 				{	
-					// shift_position_ = std::max(-params_.obstacle_coefficient_/output_ptr->points[nn_indices[min_negative_point]].x, -0.01);
 					//std::cout<<"[RIGHT OBSTACLES] Distance to obstacles(m): "<<abs(output_ptr->points[nn_indices[min_negative_point]].x) <<std::endl;
 					dists.data.push_back(output_ptr->points[nn_indices[min_negative_point]].x);
 					dists.data.push_back(output_ptr->points[nn_indices[min_negative_point]].y);
@@ -169,8 +171,12 @@ private:
 	/** configuration parameters */
 	typedef struct
 	{
-		double obstacle_coefficient_;
-		double front_obstacle_dist_;
+		double obs_x_min_;
+		double obs_x_max_;
+		double obs_y_min_;
+		double obs_y_max_;
+		double obs_z_min_;
+		double obs_z_max_;		
 	} Config;
 	Config config_;
 };
