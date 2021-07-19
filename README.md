@@ -1,6 +1,7 @@
 # Autonomous Tunnel Driving package
 
 This package is for running mobile robot under tunnel environment.
+The code is tested with [Leo Rover](https://www.leorover.tech/) mobile platform and [Rover Robotics](https://roverrobotics.com) Rover Pro 
 
 ### Used Sensors are
 * 45-degree tilted 2D Lidar: for aisle-follow driving 
@@ -58,6 +59,7 @@ This package is for running mobile robot under tunnel environment.
         * spare_length (default 1.5): Additional driving after avoiding obstacles
         * amcl_driving (default false): Whether to check the location of mobile robot
         * check_obstacles (default false): Whether to check for obstacles
+
 
 ### Required ROS Package
 * slam-gmapping
