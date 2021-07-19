@@ -1,6 +1,7 @@
 # Autonomous Tunnel Driving package
 
-This package is for running mobile robot under tunnel environment. \\
+This package is for running mobile robot under tunnel environment. 
+
 The code is tested with [Leo Rover](https://www.leorover.tech/) mobile platform and [Rover Robotics](https://roverrobotics.com) Rover Pro 
 
 ### Used Sensors are
@@ -60,7 +61,7 @@ The code is tested with [Leo Rover](https://www.leorover.tech/) mobile platform 
         * amcl_driving (default false): Whether to check the location of mobile robot
         * check_obstacles (default false): Whether to check for obstacles
 
-![node_img](config/img/node_diagram.png)
+![node_img](config/img/node_diagram.png){: width="50%"}
 
 ### Required ROS Package
 * slam-gmapping
