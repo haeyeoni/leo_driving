@@ -61,7 +61,7 @@ The code is tested with [Leo Rover](https://www.leorover.tech/) mobile platform 
         * amcl_driving (default false): Whether to check the location of mobile robot
         * check_obstacles (default false): Whether to check for obstacles
 
-![node_img](config/img/node_diagram.png){: width="50%"}
+![node_img](config/img/node_diagram.png){: width="30%"}
 
 ### Required ROS Package
 * slam-gmapping
